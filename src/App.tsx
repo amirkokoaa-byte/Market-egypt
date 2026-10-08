@@ -9,6 +9,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { LightboxModal } from './components/LightboxModal';
 import { ChainModal } from './components/ChainModal';
 import { BranchModal } from './components/BranchModal';
+import { AdminLoginModal } from './components/AdminLoginModal';
 import { ToastContainer } from './components/Toast';
 import { SupermarketChain, Branch } from './types';
 
@@ -54,11 +55,15 @@ export default function App() {
     importDatabaseBackup,
     resetToDefaultData,
     logout,
+    isAdmin,
+    loginAsAdmin,
+    logoutAdmin,
   } = useSupermarketStore();
 
   // Local UI Modal states
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [isAddChainOpen, setIsAddChainOpen] = useState(false);
   const [editingChain, setEditingChain] = useState<SupermarketChain | null>(null);
   const [isAddBranchOpen, setIsAddBranchOpen] = useState(false);
@@ -74,6 +79,9 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         onResetData={resetToDefaultData}
+        isAdmin={isAdmin}
+        onOpenAdminLogin={() => setIsAdminLoginOpen(true)}
+        onLogoutAdmin={logoutAdmin}
       />
 
       {/* MAIN LAYOUT WRAPPER */}
@@ -101,6 +109,8 @@ export default function App() {
           }}
           isMobileOpen={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          isAdmin={isAdmin}
+          onShowToast={showToast}
         />
 
         {/* MAIN WORKSPACE CONTENT */}
@@ -114,6 +124,7 @@ export default function App() {
               updateSettings({ timelineCoverUrl: newUrl });
               showToast('success', 'تم تحديث صورة غلاف التايم لاين بنجاح!');
             }}
+            isAdmin={isAdmin}
           />
 
           {/* VIEW ROUTER */}
@@ -131,6 +142,7 @@ export default function App() {
               onOpenAddBranchModal={() => setIsAddBranchOpen(true)}
               onOpenEditBranchModal={(b) => setEditingBranch(b)}
               showToast={showToast}
+              isAdmin={isAdmin}
             />
           ) : activeView === 'custom_section' && selectedSection ? (
             /* CUSTOM SECTION VIEW */
@@ -232,6 +244,13 @@ export default function App() {
           onSave={(branchData) => updateBranch(selectedChain.id, editingBranch.id, branchData)}
         />
       )}
+
+      {/* 7. Admin Login Modal */}
+      <AdminLoginModal
+        isOpen={isAdminLoginOpen}
+        onClose={() => setIsAdminLoginOpen(false)}
+        onLogin={loginAsAdmin}
+      />
 
       {/* TOAST ALERTS NOTIFICATIONS */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />

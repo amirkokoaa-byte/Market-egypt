@@ -6,6 +6,7 @@ interface LightboxModalProps {
   imageUrl: string;
   onClose: () => void;
   onUpdateImage: (newUrl: string) => void;
+  isAdmin?: boolean;
 }
 
 export const LightboxModal: React.FC<LightboxModalProps> = ({
@@ -13,6 +14,7 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
   imageUrl,
   onClose,
   onUpdateImage,
+  isAdmin = false,
 }) => {
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -58,21 +60,25 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
 
         {/* Control Buttons */}
         <div className="flex items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-lg"
-            title="استبدال صورة الغلاف"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">تغيير الصورة</span>
-          </button>
+          {isAdmin && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-lg"
+                title="استبدال صورة الغلاف (صلاحية المشرف)"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">تغيير الصورة</span>
+              </button>
+            </>
+          )}
 
           <button
             onClick={handleZoomIn}

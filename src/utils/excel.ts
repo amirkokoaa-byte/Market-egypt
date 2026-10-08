@@ -2,9 +2,55 @@ import * as XLSX from 'xlsx';
 import { Branch } from '../types';
 
 /**
+ * Normalizes branch text for exact duplicate detection:
+ * trims, removes extra whitespace, lowercases, and normalizes Arabic letters (أ إ آ -> ا, ة -> ه, ى -> ي)
+ */
+export function normalizeBranchKey(name: string, address: string = ''): string {
+  const clean = (str: string) =>
+    (str || '')
+      .toLowerCase()
+      .replace(/[أإآ]/g, 'ا')
+      .replace(/ة/g, 'ه')
+      .replace(/ى/g, 'ي')
+      .replace(/[^\w\u0621-\u064A]/g, '')
+      .trim();
+
+  return `${clean(name)}__${clean(address)}`;
+}
+
+/**
+ * Deduplicates an array of branches, keeping the first occurrence and avoiding any duplicates with existing branches.
+ */
+export function deduplicateBranches(branches: Branch[], existingBranches: Branch[] = []): Branch[] {
+  const seen = new Set<string>();
+
+  // Register existing branches so imported branches never duplicate them
+  existingBranches.forEach((b) => {
+    seen.add(normalizeBranchKey(b.name, b.address));
+    if (b.name) {
+      seen.add(normalizeBranchKey(b.name, ''));
+    }
+  });
+
+  const unique: Branch[] = [];
+  branches.forEach((b) => {
+    const keyWithAddr = normalizeBranchKey(b.name, b.address);
+    const keyNameOnly = normalizeBranchKey(b.name, '');
+
+    if (!seen.has(keyWithAddr) && !seen.has(keyNameOnly)) {
+      seen.add(keyWithAddr);
+      seen.add(keyNameOnly);
+      unique.push(b);
+    }
+  });
+
+  return unique;
+}
+
+/**
  * Intelligent parser for branches uploaded via Excel or CSV
  */
-export async function parseExcelBranches(file: File): Promise<Branch[]> {
+export async function parseExcelBranches(file: File, existingBranches: Branch[] = []): Promise<Branch[]> {
   const data = await file.arrayBuffer();
   const workbook = XLSX.read(data, { type: 'array' });
 
@@ -105,7 +151,7 @@ export async function parseExcelBranches(file: File): Promise<Branch[]> {
     }
   }
 
-  return branches;
+  return deduplicateBranches(branches, existingBranches);
 }
 
 /**

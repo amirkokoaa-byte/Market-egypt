@@ -6,6 +6,7 @@ interface TimelineCoverProps {
   websiteName: string;
   onOpenLightbox: (url: string) => void;
   onUpdateCover: (newUrl: string) => void;
+  isAdmin?: boolean;
 }
 
 export const TimelineCover: React.FC<TimelineCoverProps> = ({
@@ -13,6 +14,7 @@ export const TimelineCover: React.FC<TimelineCoverProps> = ({
   websiteName,
   onOpenLightbox,
   onUpdateCover,
+  isAdmin = false,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,26 +77,30 @@ export const TimelineCover: React.FC<TimelineCoverProps> = ({
         </div>
       </div>
 
-      {/* Floating Action Bar: Replace Cover Image */}
+      {/* Floating Action Bar: Replace Cover Image (Admin Only) */}
       <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            fileInputRef.current?.click();
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900/85 hover:bg-emerald-600 text-white backdrop-blur-md border border-white/20 hover:border-emerald-500 transition-all shadow-xl active:scale-95"
-          title="رفع وتغيير صورة الغلاف من جهازك"
-        >
-          <Camera className="w-3.5 h-3.5" />
-          <span>تغيير الغلاف</span>
-        </button>
+        {isAdmin && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900/85 hover:bg-emerald-600 text-white backdrop-blur-md border border-white/20 hover:border-emerald-500 transition-all shadow-xl active:scale-95"
+              title="رفع وتغيير صورة الغلاف من جهازك (صلاحية مسؤول)"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>تغيير الغلاف</span>
+            </button>
+          </>
+        )}
 
         <button
           onClick={(e) => {

@@ -34,6 +34,7 @@ interface SettingsModalProps {
   onImportBackup: (jsonStr: string) => void;
   onResetDefaults: () => void;
   onLogout?: () => void;
+  isAdmin?: boolean;
 }
 
 const PRESET_COVERS = [
@@ -68,6 +69,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onImportBackup,
   onResetDefaults,
   onLogout,
+  isAdmin = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'cover' | 'sidebar' | 'backup'>('general');
   const [tempWebsiteName, setTempWebsiteName] = useState(settings.websiteName);
@@ -289,6 +291,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* TAB 2: COVER (Upload/Update Timeline Cover) */}
           {activeTab === 'cover' && (
             <div className="space-y-6">
+              {!isAdmin && (
+                <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>تعديل واستبدال صورة غلاف التايم لاين متاح لحساب المشرف فقط (Admin).</span>
+                </div>
+              )}
+
               {/* Current Preview */}
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-2">
@@ -299,79 +308,83 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              {/* Upload or Custom URL */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3">
-                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                    <Camera className="w-4 h-4 text-emerald-400" />
-                    <span>رفع صورة من جهازك (ملف)</span>
-                  </h4>
-                  <p className="text-[11px] text-slate-400">
-                    يدعم جميع صيغ الصور (JPG, PNG, WebP) ويتم حفظها محلياً
-                  </p>
-                  <input
-                    ref={coverFileRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleCoverFileUpload}
-                  />
-                  <button
-                    onClick={() => coverFileRef.current?.click()}
-                    className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-emerald-600 text-white text-xs font-bold transition flex items-center justify-center gap-2"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>اختيار ملف ورفعه</span>
-                  </button>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3">
-                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                    <Image className="w-4 h-4 text-cyan-400" />
-                    <span>إدخال رابط صورة خارجي (URL)</span>
-                  </h4>
-                  <input
-                    type="url"
-                    value={tempCoverUrl}
-                    onChange={(e) => setTempCoverUrl(e.target.value)}
-                    placeholder="https://..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-none focus:border-cyan-500"
-                  />
-                  <button
-                    onClick={() => handleSaveCover(tempCoverUrl)}
-                    className="w-full py-2 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition"
-                  >
-                    تطبيق الرابط
-                  </button>
-                </div>
-              </div>
-
-              {/* Presets */}
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-2">
-                  أو اختر من النماذج الجاهزة عالية الدقة:
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {PRESET_COVERS.map((preset, idx) => (
+              {/* Upload or Custom URL - Admin Only */}
+              {isAdmin && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3">
+                    <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                      <Camera className="w-4 h-4 text-emerald-400" />
+                      <span>رفع صورة من جهازك (ملف)</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-400">
+                      يدعم جميع صيغ الصور (JPG, PNG, WebP) ويتم حفظها محلياً
+                    </p>
+                    <input
+                      ref={coverFileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleCoverFileUpload}
+                    />
                     <button
-                      key={idx}
-                      onClick={() => handleSaveCover(preset.url)}
-                      className="group text-right rounded-xl overflow-hidden border border-slate-800 hover:border-emerald-500 transition relative"
+                      onClick={() => coverFileRef.current?.click()}
+                      className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-emerald-600 text-white text-xs font-bold transition flex items-center justify-center gap-2"
                     >
-                      <div className="h-20 bg-slate-950 overflow-hidden">
-                        <img
-                          src={preset.url}
-                          alt={preset.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
-                        />
-                      </div>
-                      <div className="p-2 bg-slate-900 text-[11px] font-semibold text-slate-300 truncate">
-                        {preset.name}
-                      </div>
+                      <Upload className="w-4 h-4" />
+                      <span>اختيار ملف ورفعه</span>
                     </button>
-                  ))}
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3">
+                    <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                      <Image className="w-4 h-4 text-cyan-400" />
+                      <span>إدخال رابط صورة خارجي (URL)</span>
+                    </h4>
+                    <input
+                      type="url"
+                      value={tempCoverUrl}
+                      onChange={(e) => setTempCoverUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-none focus:border-cyan-500"
+                    />
+                    <button
+                      onClick={() => handleSaveCover(tempCoverUrl)}
+                      className="w-full py-2 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition"
+                    >
+                      تطبيق الرابط
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Presets - Admin Only */}
+              {isAdmin && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-2">
+                    أو اختر من النماذج الجاهزة عالية الدقة:
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {PRESET_COVERS.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleSaveCover(preset.url)}
+                        className="group text-right rounded-xl overflow-hidden border border-slate-800 hover:border-emerald-500 transition relative"
+                      >
+                        <div className="h-20 bg-slate-950 overflow-hidden">
+                          <img
+                            src={preset.url}
+                            alt={preset.name}
+                            className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
+                          />
+                        </div>
+                        <div className="p-2 bg-slate-900 text-[11px] font-semibold text-slate-300 truncate">
+                          {preset.name}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

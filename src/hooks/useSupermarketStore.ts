@@ -1,23 +1,60 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { SupermarketChain, AppSettings, Branch, ToastMessage, CustomSidebarSection, CustomSubButton } from '../types';
 import { INITIAL_CHAINS, INITIAL_SETTINGS, DEFAULT_TIMELINE_COVER } from '../data/initialData';
+import { normalizeBranchKey, deduplicateBranches } from '../utils/excel';
 
 const STORAGE_KEY_CHAINS = 'egypt_supermarkets_chains_v2';
 const STORAGE_KEY_SETTINGS = 'egypt_supermarkets_settings_v2';
+const STORAGE_KEY_ADMIN = 'egypt_supermarkets_admin_session';
+
+// Helper to clean and deduplicate branches across all chains
+function cleanChainsData(rawChains: SupermarketChain[]): SupermarketChain[] {
+  return rawChains.map((chain) => {
+    const seen = new Set<string>();
+    const uniqueBranches: Branch[] = [];
+
+    (chain.branches || []).forEach((b) => {
+      const keyWithAddr = normalizeBranchKey(b.name, b.address);
+      const keyNameOnly = normalizeBranchKey(b.name, '');
+
+      if (!seen.has(keyWithAddr) && !seen.has(keyNameOnly)) {
+        seen.add(keyWithAddr);
+        seen.add(keyNameOnly);
+        uniqueBranches.push(b);
+      }
+    });
+
+    return {
+      ...chain,
+      branches: uniqueBranches,
+    };
+  });
+}
 
 export function useSupermarketStore() {
-  // Load initial chains from LocalStorage
+  // Admin authentication state
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY_ADMIN) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Load initial chains from LocalStorage with automatic deduplication
   const [chains, setChains] = useState<SupermarketChain[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_CHAINS);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return cleanChainsData(parsed);
+        }
       }
     } catch (e) {
       console.error('Failed to parse chains from localStorage', e);
     }
-    return INITIAL_CHAINS;
+    return cleanChainsData(INITIAL_CHAINS);
   });
 
   // Load initial settings
@@ -26,7 +63,14 @@ export function useSupermarketStore() {
       const stored = localStorage.getItem(STORAGE_KEY_SETTINGS);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed && parsed.websiteName) return parsed;
+        if (parsed && parsed.websiteName) {
+          // Remove "في مصر" from title if previously stored
+          const cleanedName = parsed.websiteName.replace(/\s*في مصر\s*$/, '').trim();
+          return {
+            ...parsed,
+            websiteName: cleanedName || 'دليل سلاسل السوبر ماركت',
+          };
+        }
       }
     } catch (e) {
       console.error('Failed to parse settings from localStorage', e);
@@ -189,26 +233,47 @@ export function useSupermarketStore() {
     showToast('success', 'تم إضافة الفرع بنجاح!', `تمت إضافة فرع ${newBranch.name}`);
   }, [showToast]);
 
-  const bulkAddBranches = useCallback((chainId: string, newBranches: Branch[]) => {
-    if (!newBranches || newBranches.length === 0) return;
-    const targetChain = chains.find((c) => c.id === chainId);
-    setChains((prev) =>
-      prev.map((c) => {
-        if (c.id === chainId) {
-          return {
-            ...c,
-            branches: [...newBranches, ...c.branches],
-          };
-        }
-        return c;
-      })
-    );
-    showToast(
-      'success',
-      'تم استيراد الفروع بنجاح! 📊',
-      `تمت إضافة ${newBranches.length} فرع جديد إلى ${targetChain?.name || 'السلسلة'}`
-    );
-  }, [chains, showToast]);
+  const bulkAddBranches = useCallback(
+    (chainId: string, newBranches: Branch[]) => {
+      if (!newBranches || newBranches.length === 0) return;
+      const targetChain = chains.find((c) => c.id === chainId);
+      if (!targetChain) return;
+
+      const existing = targetChain.branches || [];
+      const filtered = deduplicateBranches(newBranches, existing);
+
+      if (filtered.length === 0) {
+        showToast(
+          'info',
+          'لم تتم إضافة أي فرع جديد',
+          'جميع الفروع الموجودة في الملف مكررة ومسجلة بالفعل مسبقاً.'
+        );
+        return;
+      }
+
+      setChains((prev) =>
+        prev.map((c) => {
+          if (c.id === chainId) {
+            return {
+              ...c,
+              branches: [...filtered, ...c.branches],
+            };
+          }
+          return c;
+        })
+      );
+
+      const duplicatesCount = newBranches.length - filtered.length;
+      showToast(
+        'success',
+        `تم استيراد ${filtered.length} فرع بنجاح! 📊`,
+        duplicatesCount > 0
+          ? `تم استبعاد وتصفية ${duplicatesCount} فرع مكرر تلقائياً لعدم تكرار أي فرع مسجل.`
+          : `تمت إضافة كافة الفروع إلى ${targetChain.name}`
+      );
+    },
+    [chains, showToast]
+  );
 
   const updateBranch = useCallback((chainId: string, branchId: string, updates: Partial<Branch>) => {
     setChains((prev) =>
@@ -358,8 +423,35 @@ export function useSupermarketStore() {
     setIsLightboxOpen(false);
   }, []);
 
-  const logout = useCallback(() => {
+  const loginAsAdmin = useCallback((password: string): boolean => {
+    // Accepts 'admin' or non-empty administrative key
+    if (password.trim().toLowerCase() === 'admin' || password.trim() === '123456') {
+      setIsAdmin(true);
+      try {
+        localStorage.setItem(STORAGE_KEY_ADMIN, 'true');
+      } catch (e) {
+        // ignore
+      }
+      showToast('success', 'تم تفعيل صلاحيات المسؤول 🛡️', 'يمكنك الآن إضافة وتعديل وحذف الفروع والسلاسل وتغيير الغلاف.');
+      return true;
+    }
+    return false;
+  }, [showToast]);
+
+  const logoutAdmin = useCallback(() => {
+    setIsAdmin(false);
     try {
+      localStorage.removeItem(STORAGE_KEY_ADMIN);
+    } catch (e) {
+      // ignore
+    }
+    showToast('info', 'تم تسجيل خروج المسؤول', 'تم تحويل الواجهة لوضع العرض العام للزوار.');
+  }, [showToast]);
+
+  const logout = useCallback(() => {
+    setIsAdmin(false);
+    try {
+      localStorage.removeItem(STORAGE_KEY_ADMIN);
       sessionStorage.clear();
     } catch (e) {
       // ignore
@@ -408,5 +500,8 @@ export function useSupermarketStore() {
     importDatabaseBackup,
     resetToDefaultData,
     logout,
+    isAdmin,
+    loginAsAdmin,
+    logoutAdmin,
   };
 }

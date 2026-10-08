@@ -4,7 +4,7 @@ export const DEFAULT_TIMELINE_COVER =
   'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1920&q=80';
 
 export const INITIAL_SETTINGS: AppSettings = {
-  websiteName: 'دليل سلاسل السوبر ماركت في مصر',
+  websiteName: 'دليل سلاسل السوبر ماركت',
   timelineCoverUrl: DEFAULT_TIMELINE_COVER,
   customSections: [
     {

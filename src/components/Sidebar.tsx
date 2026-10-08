@@ -14,6 +14,8 @@ import {
   Sparkles,
   X,
   FileSpreadsheet,
+  Copy,
+  ShieldCheck,
 } from 'lucide-react';
 import { SupermarketChain, CustomSidebarSection, CustomSubButton } from '../types';
 
@@ -33,6 +35,8 @@ interface SidebarProps {
   onSelectCustomSection: (sectionId: string, subBtn?: CustomSubButton) => void;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
+  isAdmin?: boolean;
+  onShowToast?: (type: 'success' | 'error' | 'info', title: string, message?: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -51,6 +55,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectCustomSection,
   isMobileOpen,
   onCloseMobile,
+  isAdmin = false,
+  onShowToast,
 }) => {
   const [isChainsTabExpanded, setIsChainsTabExpanded] = useState<boolean>(true);
   const [expandedCustomSectionId, setExpandedCustomSectionId] = useState<string | null>(null);
@@ -152,7 +158,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
 
                   {/* Actions Row: Sort Button + Add Chain Button */}
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className={isAdmin ? 'grid grid-cols-2 gap-2' : 'w-full'}>
                     {/* Sort Dropdown */}
                     <div className="relative w-full">
                       <button
@@ -189,15 +195,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       )}
                     </div>
 
-                    {/* "+ Add New Market" Button (زر أضف ماركت +) */}
-                    <button
-                      onClick={onOpenAddChainModal}
-                      className="w-full h-10 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-md shadow-emerald-950/40 transition whitespace-nowrap shrink-0"
-                      title="إضافة سلسلة سوبر ماركت جديدة"
-                    >
-                      <Plus className="w-4 h-4 shrink-0" />
-                      <span className="whitespace-nowrap font-bold">أضف ماركت +</span>
-                    </button>
+                    {/* "+ Add New Market" Button (للمسؤول فقط) */}
+                    {isAdmin && (
+                      <button
+                        onClick={onOpenAddChainModal}
+                        className="w-full h-10 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-md shadow-emerald-950/40 transition whitespace-nowrap shrink-0"
+                        title="إضافة سلسلة سوبر ماركت جديدة (صلاحية مسؤول)"
+                      >
+                        <Plus className="w-4 h-4 shrink-0" />
+                        <span className="whitespace-nowrap font-bold">أضف ماركت +</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -367,13 +375,77 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
+        {/* OFFICIAL HOTLINES: CONSUMER PROTECTION & MINISTRY OF SUPPLY (حماية المستهلك والتموين) */}
+        <div className="p-3 bg-slate-950/90 border-t border-slate-800 space-y-2 shrink-0">
+          <div className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>أرقام الشكاوى وحماية المستهلك</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {/* جهاز حماية المستهلك */}
+            <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-emerald-500/40 transition flex flex-col justify-between gap-1 text-right">
+              <span className="text-[10px] font-bold text-slate-300 truncate">حماية المستهلك</span>
+              <div className="flex items-center justify-between pt-0.5">
+                <a
+                  href="tel:19588"
+                  className="text-xs font-black text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-mono tracking-wider"
+                  title="اتصال مباشر بجهاز حماية المستهلك"
+                >
+                  <Phone className="w-3 h-3 shrink-0" />
+                  <span>19588</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText('19588');
+                    onShowToast?.('success', 'تم نسخ رقم حماية المستهلك: 19588 ⚖️');
+                  }}
+                  className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  title="نسخ رقم حماية المستهلك"
+                >
+                  <Copy className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+
+            {/* وزارة التموين والتجارة الداخلية */}
+            <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-cyan-500/40 transition flex flex-col justify-between gap-1 text-right">
+              <span className="text-[10px] font-bold text-slate-300 truncate">وزارة التموين</span>
+              <div className="flex items-center justify-between pt-0.5">
+                <a
+                  href="tel:19959"
+                  className="text-xs font-black text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-mono tracking-wider"
+                  title="اتصال مباشر بوزارة التموين"
+                >
+                  <Phone className="w-3 h-3 shrink-0" />
+                  <span>19959</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText('19959');
+                    onShowToast?.('success', 'تم نسخ رقم وزارة التموين: 19959 🛒');
+                  }}
+                  className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  title="نسخ رقم وزارة التموين"
+                >
+                  <Copy className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Sidebar Footer info */}
-        <div className="p-3 border-t border-slate-800 bg-slate-950/70 flex items-center justify-between text-xs text-slate-400">
-          <span className="flex items-center gap-1.5">
+        <div className="p-2.5 border-t border-slate-850 bg-slate-950/70 flex items-center justify-between text-xs text-slate-400">
+          <span className="flex items-center gap-1.5 text-[11px]">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             تحديث فوري ومحفوظ
           </span>
-          <span className="font-mono text-[11px] text-slate-400">v2.0 PRO</span>
+          <span className="font-mono text-[11px] text-slate-400">دليل السلاسل</span>
         </div>
       </aside>
     </>

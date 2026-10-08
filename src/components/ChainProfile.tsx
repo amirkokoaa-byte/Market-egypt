@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { SupermarketChain, Branch } from '../types';
-import { parseExcelBranches, downloadExcelTemplate, exportBranchesToExcel } from '../utils/excel';
+import { parseExcelBranches, exportBranchesToExcel } from '../utils/excel';
 
 interface ChainProfileProps {
   chain: SupermarketChain;
@@ -36,6 +36,7 @@ interface ChainProfileProps {
   onOpenAddBranchModal: () => void;
   onOpenEditBranchModal: (branch: Branch) => void;
   showToast: (type: 'success' | 'error' | 'info', title: string, message?: string) => void;
+  isAdmin?: boolean;
 }
 
 export const ChainProfile: React.FC<ChainProfileProps> = ({
@@ -50,6 +51,7 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
   onOpenAddBranchModal,
   onOpenEditBranchModal,
   showToast,
+  isAdmin = false,
 }) => {
   const [branchSearch, setBranchSearch] = useState('');
   const [selectedGovernorate, setSelectedGovernorate] = useState('all');
@@ -208,28 +210,30 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
               سلسلة معتمدة في مصر 🇪🇬
             </span>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={onOpenEditChainModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-600/50 backdrop-blur-md transition shadow"
-                title="تعديل كافة بيانات السلسلة"
-              >
-                <Edit2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>تعديل السلسلة</span>
-              </button>
+            {isAdmin && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onOpenEditChainModal}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-600/50 backdrop-blur-md transition shadow"
+                  title="تعديل كافة بيانات السلسلة (صلاحية مسؤول)"
+                >
+                  <Edit2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>تعديل السلسلة</span>
+                </button>
 
-              <button
-                onClick={() => {
-                  if (confirm(`هل أنت متأكد من حذف سلسلة "${chain.name}" وكافة فروعها؟`)) {
-                    onDeleteChain(chain.id);
-                  }
-                }}
-                className="p-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/50 backdrop-blur-md transition"
-                title="حذف السلسلة"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
+                <button
+                  onClick={() => {
+                    if (confirm(`هل أنت متأكد من حذف سلسلة "${chain.name}" وكافة فروعها؟`)) {
+                      onDeleteChain(chain.id);
+                    }
+                  }}
+                  className="p-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/50 backdrop-blur-md transition"
+                  title="حذف السلسلة (صلاحية مسؤول)"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -240,13 +244,15 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
             <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 text-center sm:text-right">
               {/* Logo / Image Box */}
               <div className="relative group shrink-0">
-                <input
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleLogoFileChange}
-                />
+                {isAdmin && (
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoFileChange}
+                  />
+                )}
                 <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-slate-800 border-4 border-slate-900 shadow-2xl overflow-hidden flex items-center justify-center relative bg-gradient-to-b from-slate-800 to-slate-900">
                   {chain.logo ? (
                     <img
@@ -259,15 +265,17 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
                       {chain.name.slice(0, 2)}
                     </span>
                   )}
-                  {/* Upload Overlay */}
-                  <button
-                    onClick={() => logoInputRef.current?.click()}
-                    className="absolute inset-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-1 text-white text-xs font-bold transition-opacity"
-                    title="تغيير لوجو السلسلة"
-                  >
-                    <Camera className="w-5 h-5 text-emerald-400" />
-                    <span>تغيير اللوجو</span>
-                  </button>
+                  {/* Upload Overlay (Admin Only) */}
+                  {isAdmin && (
+                    <button
+                      onClick={() => logoInputRef.current?.click()}
+                      className="absolute inset-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-1 text-white text-xs font-bold transition-opacity"
+                      title="تغيير لوجو السلسلة (صلاحية مسؤول)"
+                    >
+                      <Camera className="w-5 h-5 text-emerald-400" />
+                      <span>تغيير اللوجو</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -302,23 +310,23 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
           </div>
 
           {/* ACTION LINKS & ANNIVERSARY BAR */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-3 border-t border-slate-800">
-            {/* 1. Facebook Page Link */}
-            <div className="rounded-2xl bg-slate-950/60 border border-slate-800 p-3 flex items-center justify-between group hover:border-blue-500/40 transition">
-              <div className="flex items-center gap-2.5 truncate">
-                <div className="w-9 h-9 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30 shrink-0">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 pt-3 border-t border-slate-800">
+            {/* 1. Facebook Page Link (Row 1 on mobile) */}
+            <div className="rounded-2xl bg-slate-950/60 border border-slate-800 p-2.5 sm:p-3 flex items-center justify-between group hover:border-blue-500/40 transition">
+              <div className="flex items-center gap-2 truncate">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30 shrink-0">
                   <Share2 className="w-4 h-4" />
                 </div>
                 <div className="truncate text-right">
-                  <div className="text-[11px] text-slate-400">صفحة فيسبوك</div>
-                  {editingField === 'facebook' ? (
+                  <div className="text-[10px] sm:text-[11px] text-slate-400">فيسبوك</div>
+                  {editingField === 'facebook' && isAdmin ? (
                     <div className="flex items-center gap-1 mt-1">
                       <input
                         type="url"
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         placeholder="https://facebook.com/..."
-                        className="text-xs px-2 py-0.5 rounded bg-slate-800 text-white border border-slate-700 w-36"
+                        className="text-xs px-2 py-0.5 rounded bg-slate-800 text-white border border-slate-700 w-28"
                       />
                       <button onClick={saveInlineEdit} className="p-1 text-emerald-400 hover:text-emerald-300">
                         <Check className="w-3.5 h-3.5" />
@@ -342,31 +350,33 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => startEditing('facebook', chain.facebookUrl || '')}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                title="تعديل رابط الفيسبوك"
-              >
-                <Edit2 className="w-3.5 h-3.5" />
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => startEditing('facebook', chain.facebookUrl || '')}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  title="تعديل رابط الفيسبوك"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
-            {/* 2. Official Website Link */}
-            <div className="rounded-2xl bg-slate-950/60 border border-slate-800 p-3 flex items-center justify-between group hover:border-cyan-500/40 transition">
-              <div className="flex items-center gap-2.5 truncate">
-                <div className="w-9 h-9 rounded-xl bg-cyan-600/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30 shrink-0">
+            {/* 2. Official Website Link (Row 1 on mobile) */}
+            <div className="rounded-2xl bg-slate-950/60 border border-slate-800 p-2.5 sm:p-3 flex items-center justify-between group hover:border-cyan-500/40 transition">
+              <div className="flex items-center gap-2 truncate">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-cyan-600/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30 shrink-0">
                   <Globe className="w-4 h-4" />
                 </div>
                 <div className="truncate text-right">
-                  <div className="text-[11px] text-slate-400">الموقع الإلكتروني</div>
-                  {editingField === 'website' ? (
+                  <div className="text-[10px] sm:text-[11px] text-slate-400">الموقع الرسمي</div>
+                  {editingField === 'website' && isAdmin ? (
                     <div className="flex items-center gap-1 mt-1">
                       <input
                         type="url"
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         placeholder="https://..."
-                        className="text-xs px-2 py-0.5 rounded bg-slate-800 text-white border border-slate-700 w-36"
+                        className="text-xs px-2 py-0.5 rounded bg-slate-800 text-white border border-slate-700 w-28"
                       />
                       <button onClick={saveInlineEdit} className="p-1 text-emerald-400 hover:text-emerald-300">
                         <Check className="w-3.5 h-3.5" />
@@ -390,35 +400,37 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => startEditing('website', chain.websiteUrl || '')}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                title="تعديل الموقع الإلكتروني"
-              >
-                <Edit2 className="w-3.5 h-3.5" />
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => startEditing('website', chain.websiteUrl || '')}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  title="تعديل الموقع الإلكتروني"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
-            {/* 3. Interactive Hotline */}
-            <div className="rounded-2xl bg-gradient-to-r from-emerald-950/70 to-slate-950/80 border border-emerald-500/40 p-3 flex items-center justify-between group">
-              <div className="flex items-center gap-2.5 truncate">
+            {/* 3. Interactive Hotline (Row 2 on mobile) */}
+            <div className="rounded-2xl bg-gradient-to-r from-emerald-950/70 to-slate-950/80 border border-emerald-500/40 p-2.5 sm:p-3 flex items-center justify-between group">
+              <div className="flex items-center gap-2 truncate">
                 <a
                   href={`tel:${chain.hotline}`}
-                  className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold hover:scale-105 transition shadow-lg shadow-emerald-950/50 shrink-0"
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold hover:scale-105 transition shadow-lg shadow-emerald-950/50 shrink-0"
                   title="اتصال فوري بالخط الساخن"
                 >
                   <Phone className="w-4 h-4 fill-current" />
                 </a>
-                <div className="text-right">
-                  <div className="text-[11px] text-emerald-300 font-semibold">الخط الساخن (Hotline)</div>
-                  {editingField === 'hotline' ? (
+                <div className="text-right truncate">
+                  <div className="text-[10px] sm:text-[11px] text-emerald-300 font-semibold truncate">الخط الساخن</div>
+                  {editingField === 'hotline' && isAdmin ? (
                     <div className="flex items-center gap-1 mt-1">
                       <input
                         type="tel"
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         placeholder="16061"
-                        className="text-xs px-2 py-0.5 rounded bg-slate-800 text-white border border-slate-700 w-24"
+                        className="text-xs px-2 py-0.5 rounded bg-slate-800 text-white border border-slate-700 w-20"
                       />
                       <button onClick={saveInlineEdit} className="p-1 text-emerald-400 hover:text-emerald-300">
                         <Check className="w-3.5 h-3.5" />
@@ -430,10 +442,10 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
                   ) : (
                     <a
                       href={`tel:${chain.hotline}`}
-                      className="text-sm font-extrabold text-white hover:text-emerald-400 tracking-wider font-mono flex items-center gap-1.5"
+                      className="text-xs sm:text-sm font-extrabold text-white hover:text-emerald-400 tracking-wider font-mono flex items-center gap-1"
                     >
                       <span>{chain.hotline || 'لا يوجد'}</span>
-                      <span className="text-[10px] text-emerald-400 font-normal">📞 اتصال</span>
+                      <span className="text-[10px] text-emerald-400 font-normal">📞</span>
                     </a>
                   )}
                 </div>
@@ -447,28 +459,30 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
                 >
                   {isCopiedHotline ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
-                <button
-                  onClick={() => startEditing('hotline', chain.hotline || '')}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                  title="تعديل الخط الساخن"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => startEditing('hotline', chain.hotline || '')}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                    title="تعديل الخط الساخن"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* 4. Chain Anniversary / Birthday Field (خانة عيد ميلاد السلسلة 🎂) */}
+            {/* 4. Chain Anniversary / Birthday Field (Row 2 on mobile) */}
             <div
-              className={`rounded-2xl border p-3 flex items-center justify-between transition ${
+              className={`rounded-2xl border p-2.5 sm:p-3 flex items-center justify-between transition ${
                 isAnniversaryThisMonth
                   ? 'bg-gradient-to-r from-amber-950/70 to-slate-950 border-amber-500/50 shadow-md shadow-amber-950/30'
                   : 'bg-slate-950/60 border-slate-800'
               }`}
             >
-              <div className="flex items-center gap-2.5 truncate">
+              <div className="flex items-center gap-2 truncate">
                 <button
                   onClick={triggerConfetti}
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 transition active:scale-95 ${
+                  className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center border shrink-0 transition active:scale-95 ${
                     isAnniversaryThisMonth
                       ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
                       : 'bg-slate-800 text-slate-300 border-slate-700'
@@ -483,25 +497,25 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
                 </button>
 
                 <div className="text-right truncate">
-                  <div className="text-[11px] flex items-center gap-1.5 font-bold">
+                  <div className="text-[10px] sm:text-[11px] flex items-center gap-1 font-bold">
                     <span className={isAnniversaryThisMonth ? 'text-amber-300' : 'text-slate-400'}>
-                      عيد ميلاد السلسلة 🎂
+                      عيد الميلاد 🎂
                     </span>
                     {isAnniversaryThisMonth && (
-                      <span className="px-1.5 py-0.2 rounded text-[9px] bg-amber-500 text-black font-extrabold animate-pulse">
-                        هذا الشهر!
+                      <span className="px-1 py-0.2 rounded text-[8px] sm:text-[9px] bg-amber-500 text-black font-extrabold animate-pulse">
+                        هذا الشهر
                       </span>
                     )}
                   </div>
 
-                  {editingField === 'anniversary' ? (
+                  {editingField === 'anniversary' && isAdmin ? (
                     <div className="flex items-center gap-1 mt-1">
                       <input
                         type="text"
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         placeholder="15 أكتوبر"
-                        className="text-xs px-2 py-0.5 rounded bg-slate-800 text-white border border-slate-700 w-28"
+                        className="text-xs px-2 py-0.5 rounded bg-slate-800 text-white border border-slate-700 w-20"
                       />
                       <button onClick={saveInlineEdit} className="p-1 text-emerald-400 hover:text-emerald-300">
                         <Check className="w-3.5 h-3.5" />
@@ -511,7 +525,7 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
                       </button>
                     </div>
                   ) : (
-                    <div className="text-xs font-extrabold text-white truncate">
+                    <div className="text-xs sm:text-sm font-black text-amber-300 truncate">
                       {chain.anniversaryDate || 'غير محدد'}
                     </div>
                   )}
@@ -528,13 +542,15 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
                     <Sparkles className="w-3.5 h-3.5" />
                   </button>
                 )}
-                <button
-                  onClick={() => startEditing('anniversary', chain.anniversaryDate || '')}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                  title="تعديل تاريخ عيد ميلاد السلسلة"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => startEditing('anniversary', chain.anniversaryDate || '')}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                    title="تعديل تاريخ عيد ميلاد السلسلة"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -561,62 +577,54 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
             </p>
           </div>
 
-          {/* Action Buttons: Add Manually, Upload Excel, Download Template, Export */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Add Branch Manually */}
-            <button
-              onClick={onOpenAddBranchModal}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950/40 active:scale-95 transition"
-            >
-              <Plus className="w-4 h-4" />
-              <span>إضافة فرع يدوياً</span>
-            </button>
+          {/* Action Buttons: Add Manually, Upload Excel, Export (Admin Only) */}
+          {isAdmin && (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Add Branch Manually */}
+              <button
+                onClick={onOpenAddBranchModal}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950/40 active:scale-95 transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>إضافة فرع يدوياً</span>
+              </button>
 
-            {/* Excel Bulk Upload Button */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              className="hidden"
-              onChange={handleExcelUpload}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploadingExcel}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-600 hover:to-emerald-600 text-white shadow-lg shadow-teal-950/40 active:scale-95 transition disabled:opacity-50"
-              title="رفع ملف إكسيل يحتوي على الفروع واستيرادها فورياً"
-            >
-              <Upload className="w-4 h-4" />
-              <span>{isUploadingExcel ? 'جاري المعالجة...' : 'رفع الفروع من ملف Excel 📊'}</span>
-            </button>
+              {/* Excel Bulk Upload Button */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={handleExcelUpload}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingExcel}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-600 hover:to-emerald-600 text-white shadow-lg shadow-teal-950/40 active:scale-95 transition disabled:opacity-50"
+                title="رفع ملف إكسيل يحتوي على الفروع واستيرادها فورياً دون تكرار"
+              >
+                <Upload className="w-4 h-4" />
+                <span>{isUploadingExcel ? 'جاري المعالجة...' : 'رفع الفروع من ملف Excel 📊'}</span>
+              </button>
 
-            {/* Download Template */}
-            <button
-              onClick={downloadExcelTemplate}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 transition"
-              title="تنزيل قالب إكسيل جاهز يحتوي على الأعمدة المطلوبة"
-            >
-              <Download className="w-3.5 h-3.5 text-cyan-400" />
-              <span>تحميل نموذج إكسيل فارغ</span>
-            </button>
-
-            {/* Export Current Chain Branches */}
-            <button
-              onClick={() => {
-                if (!chain.branches || chain.branches.length === 0) {
-                  showToast('error', 'لا توجد فروع لتصديرها.');
-                  return;
-                }
-                exportBranchesToExcel(chain.branches, chain.name);
-                showToast('success', `تم تصدير ${chain.branches.length} فرع إلى ملف Excel`);
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 transition"
-              title="تصدير كافة فروع هذه السلسلة لملف إكسيل"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-400" />
-              <span>تصدير لـ Excel</span>
-            </button>
-          </div>
+              {/* Export Current Chain Branches */}
+              <button
+                onClick={() => {
+                  if (!chain.branches || chain.branches.length === 0) {
+                    showToast('error', 'لا توجد فروع لتصديرها.');
+                    return;
+                  }
+                  exportBranchesToExcel(chain.branches, chain.name);
+                  showToast('success', `تم تصدير ${chain.branches.length} فرع إلى ملف Excel`);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 transition"
+                title="تصدير كافة فروع هذه السلسلة لملف إكسيل"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>تصدير لـ Excel</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Search & Filter Bar */}
@@ -660,108 +668,114 @@ export const ChainProfile: React.FC<ChainProfileProps> = ({
           )}
         </div>
 
-        {/* Numbered Branches List */}
+        {/* Numbered Longitudinal Branches List (عرض الفروع مرقمة وأسفل بعض بخط طولي) */}
         {filteredBranches.length === 0 ? (
           <div className="text-center py-12 px-4 rounded-2xl bg-slate-950/40 border border-dashed border-slate-800 space-y-3">
             <MapPin className="w-10 h-10 text-slate-600 mx-auto" />
             <h4 className="text-base font-bold text-slate-300">لم يتم العثور على أي فروع</h4>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              يمكنك إضافة فرع يدوياً بالضغط على زر "إضافة فرع يدوياً" أو رفع مئات الفروع دفعة واحدة عبر زر "رفع الفروع من ملف Excel".
+              {branchSearch ? `لا توجد نتائج مطابقة لـ "${branchSearch}"` : 'لا توجد فروع مسجلة لهذه السلسلة حتى الآن.'}
             </p>
-            <div className="flex items-center justify-center gap-2 pt-2">
-              <button
-                onClick={onOpenAddBranchModal}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white"
-              >
-                + إضافة أول فرع
-              </button>
-            </div>
+            {isAdmin && (
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <button
+                  onClick={onOpenAddBranchModal}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white"
+                >
+                  + إضافة فرع
+                </button>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {filteredBranches.map((branch, index) => {
+          <div className="relative pr-7 sm:pr-9 border-r-2 border-emerald-500/35 space-y-4 sm:space-y-5 my-3">
+            {filteredBranches.map((branch) => {
               // Calculate actual sequence number
               const sequenceNumber = (chain.branches || []).findIndex((b) => b.id === branch.id) + 1;
+              const mapsLink =
+                branch.mapsUrl ||
+                `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  chain.name + ' فرع ' + branch.name + ' ' + (branch.address || '')
+                )}`;
 
               return (
-                <div
-                  key={branch.id}
-                  className="rounded-2xl bg-slate-950/50 hover:bg-slate-950/80 border border-slate-850 hover:border-emerald-500/40 p-4 transition-all duration-200 flex items-start gap-3.5 group shadow-sm hover:shadow-md"
-                >
-                  {/* Automatic Sequential Side Badge (#1, #2, #3...) */}
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 group-hover:from-emerald-950 group-hover:to-slate-850 border border-slate-700/60 group-hover:border-emerald-500/50 text-slate-300 group-hover:text-emerald-400 flex items-center justify-center font-black text-sm shrink-0 shadow-inner font-mono">
+                <div key={branch.id} className="relative group">
+                  {/* Sequence Number Badge on the longitudinal line */}
+                  <div className="absolute -right-[39px] sm:-right-[47px] top-3.5 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-900 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center font-black text-xs font-mono shadow-md z-10">
                     #{sequenceNumber}
                   </div>
 
-                  {/* Branch Details */}
-                  <div className="flex-1 min-w-0 text-right space-y-1.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition truncate">
+                  {/* Branch Card: Full details without horizontal scrolling */}
+                  <div className="w-full rounded-2xl bg-slate-950/60 hover:bg-slate-950/90 border border-slate-800 hover:border-emerald-500/40 p-4 sm:p-5 text-right space-y-3 transition shadow-sm hover:shadow-md overflow-hidden">
+                    {/* Header Row: Full Branch Name & City Badge */}
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <h4 className="text-sm sm:text-base font-bold text-white group-hover:text-emerald-300 transition break-words flex-1 min-w-0 leading-snug">
                         {branch.name}
                       </h4>
 
                       {branch.city && (
-                        <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full font-bold bg-cyan-950/70 text-cyan-300 border border-cyan-800/50">
+                        <span className="shrink-0 text-[10px] sm:text-xs px-2.5 py-0.5 rounded-full font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-800/60">
                           {branch.city}
                         </span>
                       )}
                     </div>
 
-                    {/* Detailed Address */}
-                    <div className="flex items-start gap-1.5 text-xs text-slate-300">
-                      <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
-                      <span className="line-clamp-2 leading-relaxed">{branch.address}</span>
+                    {/* Detailed Address (Full, never truncated) */}
+                    <div className="flex items-start gap-2 text-xs sm:text-sm text-slate-300 break-words leading-relaxed">
+                      <MapPin className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span className="break-words flex-1 leading-relaxed">{branch.address}</span>
                     </div>
 
-                    {/* Meta info & Quick actions */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-850">
-                      <div className="flex items-center gap-3">
+                    {/* Actions Row: Location Button + Phone + Admin controls */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-850">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Location Button ("اضغط هنا لفتح اللوكيشن") */}
+                        <a
+                          href={mapsLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition active:scale-95"
+                          title="فتح موقع الفرع على خرائط جوجل"
+                        >
+                          <Navigation className="w-3.5 h-3.5" />
+                          <span>اضغط هنا لفتح اللوكيشن 📍</span>
+                        </a>
+
                         {branch.phone && (
                           <a
                             href={`tel:${branch.phone}`}
-                            className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:underline"
-                            title="اتصال بهذا الفرع"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-750 transition"
+                            title="اتصال بالفرع"
                           >
-                            <Phone className="w-3 h-3" />
+                            <Phone className="w-3.5 h-3.5 text-emerald-400" />
                             <span>{branch.phone}</span>
                           </a>
                         )}
+                      </div>
 
-                        {branch.mapsUrl && (
-                          <a
-                            href={branch.mapsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-[11px] font-semibold text-cyan-400 hover:underline"
-                            title="فتح موقع الفرع على خرائط جوجل"
+                      {/* Admin Edit & Delete buttons */}
+                      {isAdmin && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => onOpenEditBranchModal(branch)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                            title="تعديل هذا الفرع (صلاحية مسؤول)"
                           >
-                            <Navigation className="w-3 h-3" />
-                            <span>الاتجاهات على الخريطة</span>
-                          </a>
-                        )}
-                      </div>
-
-                      {/* Edit / Delete per branch */}
-                      <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => onOpenEditBranchModal(branch)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                          title="تعديل هذا الفرع"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`حذف فرع "${branch.name}"؟`)) {
-                              onDeleteBranch(chain.id, branch.id);
-                            }
-                          }}
-                          className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
-                          title="حذف هذا الفرع"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`حذف فرع "${branch.name}"؟`)) {
+                                onDeleteBranch(chain.id, branch.id);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
+                            title="حذف هذا الفرع (صلاحية مسؤول)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
