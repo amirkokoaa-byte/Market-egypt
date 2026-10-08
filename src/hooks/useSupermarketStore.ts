@@ -14,86 +14,153 @@ import {
 const STORAGE_KEY_CHAINS = 'egypt_supermarkets_chains_v2';
 const STORAGE_KEY_SETTINGS = 'egypt_supermarkets_settings_v2';
 const STORAGE_KEY_ADMIN = 'egypt_supermarkets_admin_session';
+const STORAGE_KEY_DELETED_CHAINS = 'egypt_supermarkets_deleted_chains_v2';
+const STORAGE_KEY_DELETED_BRANCHES = 'egypt_supermarkets_deleted_branches_v2';
 
-// Helper to clean and deduplicate branches across all chains
-function cleanChainsData(rawChains: SupermarketChain[]): SupermarketChain[] {
-  return rawChains.map((chain) => {
-    const seen = new Set<string>();
-    const uniqueBranches: Branch[] = [];
-
-    (chain.branches || []).forEach((b) => {
-      const key = normalizeBranchKey(b.name, b.address);
-      if (!seen.has(key)) {
-        seen.add(key);
-        uniqueBranches.push(b);
-      }
-    });
-
-    // If chain has 0 branches but exists in INITIAL_CHAINS, recover the initial branches
-    if (uniqueBranches.length === 0) {
-      const initial = INITIAL_CHAINS.find((ic) => ic.id === chain.id);
-      if (initial && initial.branches && initial.branches.length > 0) {
-        initial.branches.forEach((b) => {
-          const key = normalizeBranchKey(b.name, b.address);
-          if (!seen.has(key)) {
-            seen.add(key);
-            uniqueBranches.push(b);
-          }
-        });
-      }
+function getDeletedChainIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_DELETED_CHAINS);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
     }
-
-    return {
-      ...chain,
-      branches: uniqueBranches,
-    };
-  });
+  } catch (e) {
+    // ignore
+  }
+  return new Set();
 }
 
-// Merges local chains with remote chains so newly registered branches are NEVER lost on refresh
+function saveDeletedChainId(id: string) {
+  try {
+    const set = getDeletedChainIds();
+    set.add(id);
+    localStorage.setItem(STORAGE_KEY_DELETED_CHAINS, JSON.stringify(Array.from(set)));
+  } catch (e) {
+    // ignore
+  }
+}
+
+function unmarkDeletedChainId(id: string) {
+  try {
+    const set = getDeletedChainIds();
+    set.delete(id);
+    localStorage.setItem(STORAGE_KEY_DELETED_CHAINS, JSON.stringify(Array.from(set)));
+  } catch (e) {
+    // ignore
+  }
+}
+
+function getDeletedBranchKeys(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_DELETED_BRANCHES);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch (e) {
+    // ignore
+  }
+  return new Set();
+}
+
+function saveDeletedBranchKeys(...keys: (string | undefined)[]) {
+  try {
+    const set = getDeletedBranchKeys();
+    keys.forEach((k) => {
+      if (k && k.trim()) set.add(k.trim());
+    });
+    localStorage.setItem(STORAGE_KEY_DELETED_BRANCHES, JSON.stringify(Array.from(set)));
+  } catch (e) {
+    // ignore
+  }
+}
+
+function unmarkDeletedBranchKeys(...keys: (string | undefined)[]) {
+  try {
+    const set = getDeletedBranchKeys();
+    keys.forEach((k) => {
+      if (k && k.trim()) set.delete(k.trim());
+    });
+    localStorage.setItem(STORAGE_KEY_DELETED_BRANCHES, JSON.stringify(Array.from(set)));
+  } catch (e) {
+    // ignore
+  }
+}
+
+// Helper to clean and deduplicate branches across all chains (strictly respects deletions)
+function cleanChainsData(rawChains: SupermarketChain[]): SupermarketChain[] {
+  const deletedChains = getDeletedChainIds();
+  const deletedBranches = getDeletedBranchKeys();
+
+  return rawChains
+    .filter((chain) => !deletedChains.has(chain.id))
+    .map((chain) => {
+      const seen = new Set<string>();
+      const uniqueBranches: Branch[] = [];
+
+      (chain.branches || []).forEach((b) => {
+        const key = normalizeBranchKey(b.name, b.address);
+        if (deletedBranches.has(key) || (b.id && deletedBranches.has(b.id))) {
+          return; // Deleted branch: NEVER restore!
+        }
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueBranches.push(b);
+        }
+      });
+
+      return {
+        ...chain,
+        branches: uniqueBranches,
+      };
+    });
+}
+
+// Merges local chains with remote chains without ever resurrecting deleted items
 function mergeChainsData(localChains: SupermarketChain[], remoteChains: SupermarketChain[]): SupermarketChain[] {
-  if (!remoteChains || remoteChains.length === 0) return cleanChainsData(localChains);
-  if (!localChains || localChains.length === 0) return cleanChainsData(remoteChains);
+  const deletedChains = getDeletedChainIds();
+  const deletedBranches = getDeletedBranchKeys();
+
+  const filteredRemote = (remoteChains || []).filter((rc) => !deletedChains.has(rc.id));
+  const filteredLocal = (localChains || []).filter((lc) => !deletedChains.has(lc.id));
+
+  if (filteredRemote.length === 0 && filteredLocal.length === 0) return [];
+  if (filteredRemote.length === 0) return cleanChainsData(filteredLocal);
+  if (filteredLocal.length === 0) return cleanChainsData(filteredRemote);
 
   const chainMap = new Map<string, SupermarketChain>();
 
-  // 1. Put all local chains first
-  localChains.forEach((lc) => {
+  // 1. Put local chains
+  filteredLocal.forEach((lc) => {
     chainMap.set(lc.id, lc);
   });
 
   // 2. Merge with remote chains
-  remoteChains.forEach((rc) => {
+  filteredRemote.forEach((rc) => {
     const local = chainMap.get(rc.id);
     if (!local) {
       chainMap.set(rc.id, rc);
     } else {
-      // Merge branches from BOTH local and remote, preserving all registered branches!
       const branchMap = new Map<string, Branch>();
 
-      // Add remote branches
+      // Remote branches (filter out deleted)
       (rc.branches || []).forEach((b) => {
         const key = normalizeBranchKey(b.name, b.address);
+        if (deletedBranches.has(key) || (b.id && deletedBranches.has(b.id))) {
+          return; // Do not restore deleted branch
+        }
         branchMap.set(key, b);
       });
 
-      // Add local branches (local user additions take precedence and are strictly preserved)
+      // Local branches (filter out deleted)
       (local.branches || []).forEach((b) => {
         const key = normalizeBranchKey(b.name, b.address);
+        if (deletedBranches.has(key) || (b.id && deletedBranches.has(b.id))) {
+          return; // Do not restore deleted branch
+        }
         const existing = branchMap.get(key);
         branchMap.set(key, existing ? { ...existing, ...b } : b);
       });
-
-      // Fallback: If both remote and local have 0 branches, recover from INITIAL_CHAINS
-      if (branchMap.size === 0) {
-        const initial = INITIAL_CHAINS.find((ic) => ic.id === rc.id);
-        if (initial && initial.branches && initial.branches.length > 0) {
-          initial.branches.forEach((b) => {
-            const key = normalizeBranchKey(b.name, b.address);
-            branchMap.set(key, b);
-          });
-        }
-      }
 
       chainMap.set(rc.id, {
         ...rc,
@@ -366,6 +433,7 @@ export function useSupermarketStore() {
   }, [showToast]);
 
   const deleteChain = useCallback(async (id: string) => {
+    saveDeletedChainId(id);
     let targetName = '';
     setChains((prev) => {
       const target = prev.find((c) => c.id === id);
@@ -384,21 +452,28 @@ export function useSupermarketStore() {
       console.warn('Firestore deleteChain error:', err);
     }
     if (selectedChainId === id) {
-      const remaining = chains.filter((c) => c.id !== id);
-      if (remaining.length > 0) {
-        setSelectedChainId(remaining[0].id);
-      }
+      setChains((current) => {
+        if (current.length > 0) {
+          setSelectedChainId(current[0].id);
+        }
+        return current;
+      });
     }
-    showToast('info', 'تم حذف السلسلة', `تمت إزالة ${targetName} بنجاح`);
-  }, [chains, selectedChainId, showToast]);
+    showToast('info', 'تم حذف السلسلة نهائياً', `تمت إزالة ${targetName} بنجاح ولن يتم استرجاعها.`);
+  }, [selectedChainId, showToast]);
 
   // Branch Operations
   const addBranch = useCallback(async (chainId: string, branchData: Omit<Branch, 'id'>) => {
+    const branchKey = normalizeBranchKey(branchData.name, branchData.address);
+    unmarkDeletedBranchKeys(branchKey);
+
     const newBranch: Branch = {
       ...branchData,
       id: `branch-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       addedAt: new Date().toISOString(),
     };
+    unmarkDeletedBranchKeys(newBranch.id);
+
     let chainToSave: SupermarketChain | null = null;
     setChains((prev) => {
       const next = prev.map((c) => {
@@ -434,6 +509,10 @@ export function useSupermarketStore() {
   const bulkAddBranches = useCallback(
     async (chainId: string, newBranches: Branch[]) => {
       if (!newBranches || newBranches.length === 0) return;
+
+      newBranches.forEach((b) => {
+        unmarkDeletedBranchKeys(normalizeBranchKey(b.name, b.address), b.id);
+      });
 
       let duplicatesCount = 0;
       let addedCount = 0;
@@ -534,12 +613,24 @@ export function useSupermarketStore() {
 
   const deleteBranch = useCallback(async (chainId: string, branchId: string) => {
     let chainToSave: SupermarketChain | null = null;
+    let deletedBranchName = '';
+
     setChains((prev) => {
       const next = prev.map((c) => {
         if (c.id === chainId) {
+          const targetBranch = c.branches.find((b) => b.id === branchId);
+          if (targetBranch) {
+            deletedBranchName = targetBranch.name;
+            const branchKey = normalizeBranchKey(targetBranch.name, targetBranch.address);
+            saveDeletedBranchKeys(branchKey, branchId, targetBranch.id);
+          } else {
+            saveDeletedBranchKeys(branchId);
+          }
+
+          const updatedBranches = c.branches.filter((b) => b.id !== branchId);
           const updated = {
             ...c,
-            branches: c.branches.filter((b) => b.id !== branchId),
+            branches: updatedBranches,
           };
           chainToSave = updated;
           return updated;
@@ -553,6 +644,7 @@ export function useSupermarketStore() {
       }
       return next;
     });
+
     if (chainToSave) {
       try {
         await saveChainToFirestore(chainToSave);
@@ -560,7 +652,7 @@ export function useSupermarketStore() {
         console.warn('Firestore deleteBranch error:', err);
       }
     }
-    showToast('info', 'تم حذف الفرع');
+    showToast('info', 'تم حذف الفرع نهائياً', deletedBranchName ? `تم حذف فرع ${deletedBranchName} ولن يتم استرجاعه.` : undefined);
   }, [showToast]);
 
   // Settings & Custom Sections Operations
@@ -573,7 +665,7 @@ export function useSupermarketStore() {
     showToast('success', 'تم حفظ الإعدادات بنجاح');
   }, [showToast]);
 
-  const addCustomSection = useCallback((title: string, description?: string, icon?: string) => {
+  const addCustomSection = useCallback(async (title: string, description?: string, icon?: string) => {
     const newSection: CustomSidebarSection = {
       id: `section-${Date.now()}`,
       title,
@@ -581,51 +673,119 @@ export function useSupermarketStore() {
       icon: icon || 'FolderPlus',
       buttons: [],
     };
-    setSettings((prev) => ({
-      ...prev,
-      customSections: [...prev.customSections, newSection],
-    }));
+    let nextSettings: AppSettings | null = null;
+    setSettings((prev) => {
+      const next = {
+        ...prev,
+        customSections: [...prev.customSections, newSection],
+      };
+      nextSettings = next;
+      try {
+        localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(next));
+      } catch (e) {
+        // ignore
+      }
+      return next;
+    });
+    if (nextSettings) {
+      try {
+        await saveSettingsToFirestore(nextSettings);
+      } catch (err) {
+        console.warn('Firestore addCustomSection error:', err);
+      }
+    }
     showToast('success', 'تمت إضافة القسم الجديد للقائمة الجانبية');
   }, [showToast]);
 
-  const deleteCustomSection = useCallback((sectionId: string) => {
-    setSettings((prev) => ({
-      ...prev,
-      customSections: prev.customSections.filter((s) => s.id !== sectionId),
-    }));
+  const deleteCustomSection = useCallback(async (sectionId: string) => {
+    let nextSettings: AppSettings | null = null;
+    setSettings((prev) => {
+      const next = {
+        ...prev,
+        customSections: prev.customSections.filter((s) => s.id !== sectionId),
+      };
+      nextSettings = next;
+      try {
+        localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(next));
+      } catch (e) {
+        // ignore
+      }
+      return next;
+    });
     if (selectedSectionId === sectionId) {
       setActiveView('chains');
       setSelectedSectionId(null);
     }
-    showToast('info', 'تم حذف القسم من القائمة الجانبية');
+    if (nextSettings) {
+      try {
+        await saveSettingsToFirestore(nextSettings);
+      } catch (err) {
+        console.warn('Firestore deleteCustomSection error:', err);
+      }
+    }
+    showToast('info', 'تم حذف القسم نهائياً', 'تم حذف القسم ولن يتم استرجاعه.');
   }, [selectedSectionId, showToast]);
 
-  const addCustomSubButton = useCallback((sectionId: string, buttonData: Omit<CustomSubButton, 'id'>) => {
+  const addCustomSubButton = useCallback(async (sectionId: string, buttonData: Omit<CustomSubButton, 'id'>) => {
     const newBtn: CustomSubButton = {
       ...buttonData,
       id: `btn-${Date.now()}`,
     };
-    setSettings((prev) => ({
-      ...prev,
-      customSections: prev.customSections.map((sec) =>
-        sec.id === sectionId
-          ? { ...sec, buttons: [...sec.buttons, newBtn] }
-          : sec
-      ),
-    }));
+    let nextSettings: AppSettings | null = null;
+    setSettings((prev) => {
+      const next = {
+        ...prev,
+        customSections: prev.customSections.map((sec) =>
+          sec.id === sectionId
+            ? { ...sec, buttons: [...sec.buttons, newBtn] }
+            : sec
+        ),
+      };
+      nextSettings = next;
+      try {
+        localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(next));
+      } catch (e) {
+        // ignore
+      }
+      return next;
+    });
+    if (nextSettings) {
+      try {
+        await saveSettingsToFirestore(nextSettings);
+      } catch (err) {
+        console.warn('Firestore addCustomSubButton error:', err);
+      }
+    }
     showToast('success', 'تمت إضافة الزر الفرعي بنجاح');
   }, [showToast]);
 
-  const deleteCustomSubButton = useCallback((sectionId: string, buttonId: string) => {
-    setSettings((prev) => ({
-      ...prev,
-      customSections: prev.customSections.map((sec) =>
-        sec.id === sectionId
-          ? { ...sec, buttons: sec.buttons.filter((b) => b.id !== buttonId) }
-          : sec
-      ),
-    }));
-    showToast('info', 'تم حذف الزر الفرعي');
+  const deleteCustomSubButton = useCallback(async (sectionId: string, buttonId: string) => {
+    let nextSettings: AppSettings | null = null;
+    setSettings((prev) => {
+      const next = {
+        ...prev,
+        customSections: prev.customSections.map((sec) =>
+          sec.id === sectionId
+            ? { ...sec, buttons: sec.buttons.filter((b) => b.id !== buttonId) }
+            : sec
+        ),
+      };
+      nextSettings = next;
+      try {
+        localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(next));
+      } catch (e) {
+        // ignore
+      }
+      return next;
+    });
+    if (nextSettings) {
+      try {
+        await saveSettingsToFirestore(nextSettings);
+      } catch (err) {
+        console.warn('Firestore deleteCustomSubButton error:', err);
+      }
+    }
+    showToast('info', 'تم حذف الزر الفرعي نهائياً');
   }, [showToast]);
 
   // Full Database Backup & Restore
@@ -673,6 +833,8 @@ export function useSupermarketStore() {
     setActiveView('chains');
     localStorage.removeItem(STORAGE_KEY_CHAINS);
     localStorage.removeItem(STORAGE_KEY_SETTINGS);
+    localStorage.removeItem(STORAGE_KEY_DELETED_CHAINS);
+    localStorage.removeItem(STORAGE_KEY_DELETED_BRANCHES);
     showToast('info', 'تمت إعادة ضبط البيانات إلى القيم الافتراضية الأصلية.');
   }, [showToast]);
 
