@@ -58,6 +58,7 @@ export default function App() {
     isAdmin,
     loginAsAdmin,
     logoutAdmin,
+    syncAllToFirebase,
   } = useSupermarketStore();
 
   // Local UI Modal states
@@ -193,6 +194,8 @@ export default function App() {
         onImportBackup={importDatabaseBackup}
         onResetDefaults={resetToDefaultData}
         onLogout={logout}
+        isAdmin={isAdmin}
+        onSyncAllToFirebase={syncAllToFirebase}
       />
 
       {/* 2. Full-Screen Interactive Lightbox Modal */}

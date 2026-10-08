@@ -22,21 +22,88 @@ function cleanChainsData(rawChains: SupermarketChain[]): SupermarketChain[] {
     const uniqueBranches: Branch[] = [];
 
     (chain.branches || []).forEach((b) => {
-      const keyWithAddr = normalizeBranchKey(b.name, b.address);
-      const keyNameOnly = normalizeBranchKey(b.name, '');
-
-      if (!seen.has(keyWithAddr) && !seen.has(keyNameOnly)) {
-        seen.add(keyWithAddr);
-        seen.add(keyNameOnly);
+      const key = normalizeBranchKey(b.name, b.address);
+      if (!seen.has(key)) {
+        seen.add(key);
         uniqueBranches.push(b);
       }
     });
+
+    // If chain has 0 branches but exists in INITIAL_CHAINS, recover the initial branches
+    if (uniqueBranches.length === 0) {
+      const initial = INITIAL_CHAINS.find((ic) => ic.id === chain.id);
+      if (initial && initial.branches && initial.branches.length > 0) {
+        initial.branches.forEach((b) => {
+          const key = normalizeBranchKey(b.name, b.address);
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueBranches.push(b);
+          }
+        });
+      }
+    }
 
     return {
       ...chain,
       branches: uniqueBranches,
     };
   });
+}
+
+// Merges local chains with remote chains so newly registered branches are NEVER lost on refresh
+function mergeChainsData(localChains: SupermarketChain[], remoteChains: SupermarketChain[]): SupermarketChain[] {
+  if (!remoteChains || remoteChains.length === 0) return cleanChainsData(localChains);
+  if (!localChains || localChains.length === 0) return cleanChainsData(remoteChains);
+
+  const chainMap = new Map<string, SupermarketChain>();
+
+  // 1. Put all local chains first
+  localChains.forEach((lc) => {
+    chainMap.set(lc.id, lc);
+  });
+
+  // 2. Merge with remote chains
+  remoteChains.forEach((rc) => {
+    const local = chainMap.get(rc.id);
+    if (!local) {
+      chainMap.set(rc.id, rc);
+    } else {
+      // Merge branches from BOTH local and remote, preserving all registered branches!
+      const branchMap = new Map<string, Branch>();
+
+      // Add remote branches
+      (rc.branches || []).forEach((b) => {
+        const key = normalizeBranchKey(b.name, b.address);
+        branchMap.set(key, b);
+      });
+
+      // Add local branches (local user additions take precedence and are strictly preserved)
+      (local.branches || []).forEach((b) => {
+        const key = normalizeBranchKey(b.name, b.address);
+        const existing = branchMap.get(key);
+        branchMap.set(key, existing ? { ...existing, ...b } : b);
+      });
+
+      // Fallback: If both remote and local have 0 branches, recover from INITIAL_CHAINS
+      if (branchMap.size === 0) {
+        const initial = INITIAL_CHAINS.find((ic) => ic.id === rc.id);
+        if (initial && initial.branches && initial.branches.length > 0) {
+          initial.branches.forEach((b) => {
+            const key = normalizeBranchKey(b.name, b.address);
+            branchMap.set(key, b);
+          });
+        }
+      }
+
+      chainMap.set(rc.id, {
+        ...rc,
+        ...local,
+        branches: Array.from(branchMap.values()),
+      });
+    }
+  });
+
+  return cleanChainsData(Array.from(chainMap.values()));
 }
 
 export function useSupermarketStore() {
@@ -129,7 +196,22 @@ export function useSupermarketStore() {
     const unsubscribe = subscribeToChains(
       (remoteChains) => {
         if (remoteChains && remoteChains.length > 0) {
-          setChains(cleanChainsData(remoteChains));
+          setChains((currentLocalChains) => {
+            const merged = mergeChainsData(currentLocalChains, remoteChains);
+            // Ensure any locally added branches not yet in remote Firestore are persisted to Firestore
+            merged.forEach((mChain) => {
+              const rChain = remoteChains.find((r) => r.id === mChain.id);
+              if (
+                mChain.branches &&
+                (!rChain || !rChain.branches || mChain.branches.length > rChain.branches.length)
+              ) {
+                saveChainToFirestore(mChain).catch((err) =>
+                  console.warn('Auto-syncing preserved branches to Firestore:', err)
+                );
+              }
+            });
+            return merged;
+          });
           if (isInitial) {
             showToast('success', 'متصل بالسحابة (Firebase) ⚡', 'يتم مزامنة وتحديث الفروع والسلاسل لحظياً.');
           }
@@ -229,81 +311,169 @@ export function useSupermarketStore() {
   }, [chains, searchQuery, sortMode]);
 
   // Chain Operations
-  const addChain = useCallback((newChainData: Omit<SupermarketChain, 'id' | 'branches'>) => {
+  const addChain = useCallback(async (newChainData: Omit<SupermarketChain, 'id' | 'branches'>) => {
     const id = `chain-${Date.now()}`;
     const newChain: SupermarketChain = {
       ...newChainData,
       id,
       branches: [],
     };
-    setChains((prev) => [newChain, ...prev]);
+    setChains((prev) => {
+      const next = [newChain, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEY_CHAINS, JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to save chains to localStorage', e);
+      }
+      return next;
+    });
     setSelectedChainId(id);
     setActiveView('chains');
-    saveChainToFirestore(newChain).catch((err) => console.warn('Firestore addChain:', err));
+    try {
+      await saveChainToFirestore(newChain);
+    } catch (err) {
+      console.warn('Firestore addChain error:', err);
+    }
     showToast('success', 'تمت إضافة السلسلة بنجاح!', `أهلاً بـ ${newChain.name} في الدليل`);
   }, [showToast]);
 
-  const updateChain = useCallback((id: string, updates: Partial<SupermarketChain>) => {
+  const updateChain = useCallback(async (id: string, updates: Partial<SupermarketChain>) => {
+    let chainToSave: SupermarketChain | null = null;
     setChains((prev) => {
       const next = prev.map((c) => {
         if (c.id === id) {
           const updated = { ...c, ...updates };
-          saveChainToFirestore(updated).catch((err) => console.warn('Firestore updateChain:', err));
+          chainToSave = updated;
           return updated;
         }
         return c;
       });
+      try {
+        localStorage.setItem(STORAGE_KEY_CHAINS, JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to save chains to localStorage', e);
+      }
       return next;
     });
+    if (chainToSave) {
+      try {
+        await saveChainToFirestore(chainToSave);
+      } catch (err) {
+        console.warn('Firestore updateChain error:', err);
+      }
+    }
     showToast('success', 'تم تحديث بيانات السلسلة بنجاح');
   }, [showToast]);
 
-  const deleteChain = useCallback((id: string) => {
-    const target = chains.find((c) => c.id === id);
-    setChains((prev) => prev.filter((c) => c.id !== id));
-    deleteChainFromFirestore(id).catch((err) => console.warn('Firestore deleteChain:', err));
+  const deleteChain = useCallback(async (id: string) => {
+    let targetName = '';
+    setChains((prev) => {
+      const target = prev.find((c) => c.id === id);
+      targetName = target?.name || '';
+      const next = prev.filter((c) => c.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEY_CHAINS, JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to save chains to localStorage', e);
+      }
+      return next;
+    });
+    try {
+      await deleteChainFromFirestore(id);
+    } catch (err) {
+      console.warn('Firestore deleteChain error:', err);
+    }
     if (selectedChainId === id) {
       const remaining = chains.filter((c) => c.id !== id);
       if (remaining.length > 0) {
         setSelectedChainId(remaining[0].id);
       }
     }
-    showToast('info', 'تم حذف السلسلة', `تمت إزالة ${target?.name || ''} بنجاح`);
+    showToast('info', 'تم حذف السلسلة', `تمت إزالة ${targetName} بنجاح`);
   }, [chains, selectedChainId, showToast]);
 
   // Branch Operations
-  const addBranch = useCallback((chainId: string, branchData: Omit<Branch, 'id'>) => {
+  const addBranch = useCallback(async (chainId: string, branchData: Omit<Branch, 'id'>) => {
     const newBranch: Branch = {
       ...branchData,
       id: `branch-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       addedAt: new Date().toISOString(),
     };
-    setChains((prev) =>
-      prev.map((c) => {
+    let chainToSave: SupermarketChain | null = null;
+    setChains((prev) => {
+      const next = prev.map((c) => {
         if (c.id === chainId) {
+          const currentBranches = c.branches || [];
+          const updatedBranches = deduplicateBranches([newBranch, ...currentBranches]);
           const updated = {
             ...c,
-            branches: [newBranch, ...c.branches],
+            branches: updatedBranches,
           };
-          saveChainToFirestore(updated).catch((err) => console.warn('Firestore addBranch:', err));
+          chainToSave = updated;
           return updated;
         }
         return c;
-      })
-    );
+      });
+      try {
+        localStorage.setItem(STORAGE_KEY_CHAINS, JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to save chains to localStorage', e);
+      }
+      return next;
+    });
+    if (chainToSave) {
+      try {
+        await saveChainToFirestore(chainToSave);
+      } catch (err) {
+        console.warn('Firestore addBranch error:', err);
+      }
+    }
     showToast('success', 'تم إضافة الفرع بنجاح!', `تمت إضافة فرع ${newBranch.name}`);
   }, [showToast]);
 
   const bulkAddBranches = useCallback(
-    (chainId: string, newBranches: Branch[]) => {
+    async (chainId: string, newBranches: Branch[]) => {
       if (!newBranches || newBranches.length === 0) return;
-      const targetChain = chains.find((c) => c.id === chainId);
-      if (!targetChain) return;
 
-      const existing = targetChain.branches || [];
-      const filtered = deduplicateBranches(newBranches, existing);
+      let duplicatesCount = 0;
+      let addedCount = 0;
+      let targetChainName = '';
+      let chainToSave: SupermarketChain | null = null;
 
-      if (filtered.length === 0) {
+      setChains((prev) => {
+        const target = prev.find((c) => c.id === chainId);
+        if (!target) return prev;
+        targetChainName = target.name;
+
+        const existing = target.branches || [];
+        const filtered = deduplicateBranches(newBranches, existing);
+
+        if (filtered.length === 0) {
+          return prev;
+        }
+
+        addedCount = filtered.length;
+        duplicatesCount = newBranches.length - filtered.length;
+
+        const updatedBranches = deduplicateBranches([...filtered, ...existing]);
+        const updated = {
+          ...target,
+          branches: updatedBranches,
+        };
+        chainToSave = updated;
+
+        const next = prev.map((c) => (c.id === chainId ? updated : c));
+
+        try {
+          localStorage.setItem(STORAGE_KEY_CHAINS, JSON.stringify(next));
+        } catch (e) {
+          console.error('Failed to save chains to localStorage', e);
+        }
+
+        return next;
+      });
+
+      if (addedCount === 0) {
         showToast(
           'info',
           'لم تتم إضافة أي فرع جديد',
@@ -312,63 +482,84 @@ export function useSupermarketStore() {
         return;
       }
 
-      setChains((prev) =>
-        prev.map((c) => {
-          if (c.id === chainId) {
-            const updated = {
-              ...c,
-              branches: [...filtered, ...c.branches],
-            };
-            saveChainToFirestore(updated).catch((err) => console.warn('Firestore bulkAddBranches:', err));
-            return updated;
-          }
-          return c;
-        })
-      );
+      if (chainToSave) {
+        try {
+          await saveChainToFirestore(chainToSave);
+        } catch (err) {
+          console.warn('Firestore bulkAddBranches error:', err);
+        }
+      }
 
-      const duplicatesCount = newBranches.length - filtered.length;
       showToast(
         'success',
-        `تم استيراد ${filtered.length} فرع بنجاح! 📊`,
+        `تم استيراد ${addedCount} فرع بنجاح! 📊`,
         duplicatesCount > 0
           ? `تم استبعاد وتصفية ${duplicatesCount} فرع مكرر تلقائياً لعدم تكرار أي فرع مسجل.`
-          : `تمت إضافة كافة الفروع إلى ${targetChain.name}`
+          : `تمت إضافة كافة الفروع إلى ${targetChainName}`
       );
     },
-    [chains, showToast]
+    [showToast]
   );
 
-  const updateBranch = useCallback((chainId: string, branchId: string, updates: Partial<Branch>) => {
-    setChains((prev) =>
-      prev.map((c) => {
+  const updateBranch = useCallback(async (chainId: string, branchId: string, updates: Partial<Branch>) => {
+    let chainToSave: SupermarketChain | null = null;
+    setChains((prev) => {
+      const next = prev.map((c) => {
         if (c.id === chainId) {
           const updated = {
             ...c,
             branches: c.branches.map((b) => (b.id === branchId ? { ...b, ...updates } : b)),
           };
-          saveChainToFirestore(updated).catch((err) => console.warn('Firestore updateBranch:', err));
+          chainToSave = updated;
           return updated;
         }
         return c;
-      })
-    );
+      });
+      try {
+        localStorage.setItem(STORAGE_KEY_CHAINS, JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to save chains to localStorage', e);
+      }
+      return next;
+    });
+    if (chainToSave) {
+      try {
+        await saveChainToFirestore(chainToSave);
+      } catch (err) {
+        console.warn('Firestore updateBranch error:', err);
+      }
+    }
     showToast('success', 'تم تحديث بيانات الفرع');
   }, [showToast]);
 
-  const deleteBranch = useCallback((chainId: string, branchId: string) => {
-    setChains((prev) =>
-      prev.map((c) => {
+  const deleteBranch = useCallback(async (chainId: string, branchId: string) => {
+    let chainToSave: SupermarketChain | null = null;
+    setChains((prev) => {
+      const next = prev.map((c) => {
         if (c.id === chainId) {
           const updated = {
             ...c,
             branches: c.branches.filter((b) => b.id !== branchId),
           };
-          saveChainToFirestore(updated).catch((err) => console.warn('Firestore deleteBranch:', err));
+          chainToSave = updated;
           return updated;
         }
         return c;
-      })
-    );
+      });
+      try {
+        localStorage.setItem(STORAGE_KEY_CHAINS, JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to save chains to localStorage', e);
+      }
+      return next;
+    });
+    if (chainToSave) {
+      try {
+        await saveChainToFirestore(chainToSave);
+      } catch (err) {
+        console.warn('Firestore deleteBranch error:', err);
+      }
+    }
     showToast('info', 'تم حذف الفرع');
   }, [showToast]);
 
@@ -530,6 +721,28 @@ export function useSupermarketStore() {
     showToast('info', 'تم تسجيل الخروج بنجاح', 'تم إنهاء الجلسة الحالية بنجاح.');
   }, [showToast]);
 
+  const syncAllToFirebase = useCallback(async () => {
+    try {
+      showToast('info', 'جاري المزامنة مع Firebase ☁️', 'يتم رفع كافة السلاسل والفروع إلى قاعدة البيانات.');
+      const result = await syncAllChainsToFirestore(chains);
+      if (result.failed > 0 && result.success === 0) {
+        showToast(
+          'error',
+          'تعذرت المزامنة - تحقق من قواعد Firebase',
+          'يرجى فتح لوحة Firebase Console > Firestore Database > Rules والتأكد من السماح بالقراءة والكتابة: allow read, write: if true;'
+        );
+      } else {
+        showToast(
+          'success',
+          `تمت المزامنة السحابية بنجاح! (${result.success} سلسلة) ⚡`,
+          'البيانات الآن منشورة في Firebase وتظهر لحظياً لجميع المستخدمين والزوار.'
+        );
+      }
+    } catch (err: any) {
+      showToast('error', 'خطأ أثناء المزامنة السحابية', err?.message || 'تحقق من اتصال الإنترنت وقواعد Firebase.');
+    }
+  }, [chains, showToast]);
+
   return {
     chains,
     filteredChains,
@@ -574,5 +787,6 @@ export function useSupermarketStore() {
     isAdmin,
     loginAsAdmin,
     logoutAdmin,
+    syncAllToFirebase,
   };
 }

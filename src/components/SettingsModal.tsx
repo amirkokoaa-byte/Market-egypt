@@ -18,6 +18,7 @@ import {
   FileText,
   LogOut,
   UserCheck,
+  Cloud,
 } from 'lucide-react';
 import { AppSettings, CustomSidebarSection, CustomSubButton } from '../types';
 
@@ -35,6 +36,7 @@ interface SettingsModalProps {
   onResetDefaults: () => void;
   onLogout?: () => void;
   isAdmin?: boolean;
+  onSyncAllToFirebase?: () => void;
 }
 
 const PRESET_COVERS = [
@@ -70,6 +72,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onResetDefaults,
   onLogout,
   isAdmin = false,
+  onSyncAllToFirebase,
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'cover' | 'sidebar' | 'backup'>('general');
   const [tempWebsiteName, setTempWebsiteName] = useState(settings.websiteName);
@@ -559,6 +562,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* TAB 4: BACKUP & RESTORE */}
           {activeTab === 'backup' && (
             <div className="space-y-6 max-w-xl">
+              {/* Cloud Sync (Firebase) */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/60 to-slate-900 border border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Cloud className="w-4 h-4 text-emerald-400" />
+                    <h4 className="text-xs font-bold text-white">نشر ومزامنة سحابية (Firebase Cloud Sync)</h4>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                    رفع وتحديث كافة السلاسل والفروع في قاعدة بيانات Firebase السحابية لكي تظهر لجميع الزوار والمستخدمين لحظياً وبدون تحديث.
+                  </p>
+                </div>
+                {onSyncAllToFirebase && (
+                  <button
+                    type="button"
+                    onClick={onSyncAllToFirebase}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg transition active:scale-95 shrink-0"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>نشر لجميع المستخدمين ☁️</span>
+                  </button>
+                )}
+              </div>
+
               {/* Export JSON */}
               <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
                 <div>

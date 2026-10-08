@@ -15,31 +15,33 @@ export function normalizeBranchKey(name: string, address: string = ''): string {
       .replace(/[^\w\u0621-\u064A]/g, '')
       .trim();
 
-  return `${clean(name)}__${clean(address)}`;
+  const cleanName = clean(name);
+  const cleanAddr = clean(address);
+
+  // If address is provided, true identity is (Name + Address)
+  if (cleanAddr) {
+    return `${cleanName}__${cleanAddr}`;
+  }
+  return `${cleanName}__empty`;
 }
 
 /**
- * Deduplicates an array of branches, keeping the first occurrence and avoiding any duplicates with existing branches.
+ * Deduplicates an array of branches, keeping the first occurrence and avoiding exact duplicates with existing branches.
  */
 export function deduplicateBranches(branches: Branch[], existingBranches: Branch[] = []): Branch[] {
   const seen = new Set<string>();
 
-  // Register existing branches so imported branches never duplicate them
+  // Register existing branches
   existingBranches.forEach((b) => {
     seen.add(normalizeBranchKey(b.name, b.address));
-    if (b.name) {
-      seen.add(normalizeBranchKey(b.name, ''));
-    }
   });
 
   const unique: Branch[] = [];
   branches.forEach((b) => {
-    const keyWithAddr = normalizeBranchKey(b.name, b.address);
-    const keyNameOnly = normalizeBranchKey(b.name, '');
+    const key = normalizeBranchKey(b.name, b.address);
 
-    if (!seen.has(keyWithAddr) && !seen.has(keyNameOnly)) {
-      seen.add(keyWithAddr);
-      seen.add(keyNameOnly);
+    if (!seen.has(key)) {
+      seen.add(key);
       unique.push(b);
     }
   });
