@@ -16,6 +16,8 @@ import {
   Sparkles,
   Link2,
   FileText,
+  LogOut,
+  UserCheck,
 } from 'lucide-react';
 import { AppSettings, CustomSidebarSection, CustomSubButton } from '../types';
 
@@ -31,6 +33,7 @@ interface SettingsModalProps {
   onExportBackup: () => void;
   onImportBackup: (jsonStr: string) => void;
   onResetDefaults: () => void;
+  onLogout?: () => void;
 }
 
 const PRESET_COVERS = [
@@ -64,6 +67,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onExportBackup,
   onImportBackup,
   onResetDefaults,
+  onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'cover' | 'sidebar' | 'backup'>('general');
   const [tempWebsiteName, setTempWebsiteName] = useState(settings.websiteName);
@@ -252,6 +256,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   معاينة فورية للاسم:
                 </span>
                 <div className="text-lg font-black text-white">{tempWebsiteName || settings.websiteName}</div>
+              </div>
+
+              {/* Account & Session: Logout Button */}
+              <div className="p-4 rounded-2xl bg-rose-950/20 border border-rose-900/30 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
+                    <LogOut className="w-4 h-4" />
+                    <span>جلسة الإدارة والحساب</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    تسجيل الخروج الآمن وإنهاء جلسة العمل الحالية
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm('هل أنت متأكد من رغبتك في تسجيل الخروج؟')) {
+                      onLogout?.();
+                      onClose();
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition shadow active:scale-95"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>تسجيل خروج</span>
+                </button>
               </div>
             </div>
           )}
@@ -585,7 +615,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-end">
+        <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm('هل أنت متأكد من رغبتك في تسجيل الخروج؟')) {
+                onLogout?.();
+                onClose();
+              }
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-950/70 hover:bg-rose-900/90 text-rose-300 border border-rose-800/60 text-xs font-bold transition active:scale-95 shadow"
+            title="تسجيل الخروج"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>تسجيل خروج</span>
+          </button>
+
           <button
             onClick={onClose}
             className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition"

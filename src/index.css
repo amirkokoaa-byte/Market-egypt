@@ -4,6 +4,30 @@
   body {
     font-family: 'Cairo', system-ui, -apple-system, sans-serif;
   }
+
+  /* منع التكبير والزوم التلقائي المزعج على متصفحات الموبايل عند التركيز والكتابة في أي حقل إدخال */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* ضمان تطبيق 16px كحد أدنى على جميع حقول الإدخال عبر الأجهزة لمنع iOS Safari / Chrome Auto-Zoom */
+@media screen and (max-width: 768px) {
+  input,
+  input[type="text"],
+  input[type="search"],
+  input[type="url"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 16px !important;
+    line-height: 1.4 !important;
+  }
 }
 
 /* Custom sleek scrollbar */
@@ -24,3 +48,4 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(16, 185, 129, 0.8);
 }
+

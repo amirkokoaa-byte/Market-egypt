@@ -358,6 +358,15 @@ export function useSupermarketStore() {
     setIsLightboxOpen(false);
   }, []);
 
+  const logout = useCallback(() => {
+    try {
+      sessionStorage.clear();
+    } catch (e) {
+      // ignore
+    }
+    showToast('info', 'تم تسجيل الخروج بنجاح', 'تم إنهاء الجلسة الحالية بنجاح.');
+  }, [showToast]);
+
   return {
     chains,
     filteredChains,
@@ -398,5 +407,6 @@ export function useSupermarketStore() {
     exportDatabaseBackup,
     importDatabaseBackup,
     resetToDefaultData,
+    logout,
   };
 }

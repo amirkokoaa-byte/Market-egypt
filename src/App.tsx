@@ -53,6 +53,7 @@ export default function App() {
     exportDatabaseBackup,
     importDatabaseBackup,
     resetToDefaultData,
+    logout,
   } = useSupermarketStore();
 
   // Local UI Modal states
@@ -179,6 +180,7 @@ export default function App() {
         onExportBackup={exportDatabaseBackup}
         onImportBackup={importDatabaseBackup}
         onResetDefaults={resetToDefaultData}
+        onLogout={logout}
       />
 
       {/* 2. Full-Screen Interactive Lightbox Modal */}

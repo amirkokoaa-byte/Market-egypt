@@ -80,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 right-0 z-50 w-80 sm:w-96 bg-slate-900 border-l border-slate-800 flex flex-col transition-transform duration-300 ease-in-out lg:static lg:w-88 xl:w-96 lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 right-0 z-50 w-[88vw] max-w-[390px] sm:w-96 bg-slate-900 border-l border-slate-800 flex flex-col transition-transform duration-300 ease-in-out lg:static lg:w-88 xl:w-96 lg:translate-x-0 ${
           isMobileOpen ? 'translate-x-0 shadow-2xl' : 'translate-x-full lg:translate-x-0'
         }`}
       >
@@ -152,12 +152,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
 
                   {/* Actions Row: Sort Button + Add Chain Button */}
-                  <div className="flex items-center gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {/* Sort Dropdown */}
-                    <div className="relative flex-1">
+                    <div className="relative w-full">
                       <button
                         onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800/80 hover:bg-slate-750 text-slate-200 border border-slate-700/70 transition"
+                        className="w-full h-10 flex items-center justify-between px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800/80 hover:bg-slate-750 text-slate-200 border border-slate-700/70 transition"
                       >
                         <div className="flex items-center gap-1.5 truncate">
                           <ArrowUpDown className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -192,11 +192,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {/* "+ Add New Market" Button (زر أضف ماركت +) */}
                     <button
                       onClick={onOpenAddChainModal}
-                      className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/40 active:scale-95 transition shrink-0"
+                      className="w-full h-10 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-md shadow-emerald-950/40 transition whitespace-nowrap shrink-0"
                       title="إضافة سلسلة سوبر ماركت جديدة"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>أضف ماركت +</span>
+                      <Plus className="w-4 h-4 shrink-0" />
+                      <span className="whitespace-nowrap font-bold">أضف ماركت +</span>
                     </button>
                   </div>
                 </div>
@@ -245,33 +245,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                           {/* Chain Meta */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-1">
-                              <h4
-                                className={`text-xs font-bold truncate ${
-                                  isSelected ? 'text-emerald-300 font-extrabold' : 'text-slate-200'
-                                }`}
-                              >
-                                {chain.name}
-                              </h4>
-                              {isBirthdayThisMonth && (
-                                <span
-                                  className="shrink-0 text-[10px] px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold"
-                                  title={`عيد ميلاد السلسلة هذا الشهر (${chain.anniversaryDate})`}
-                                >
-                                  🎂 شهر الميلاد
-                                </span>
-                              )}
-                            </div>
+                            {/* Chain Name in Full Single Line */}
+                            <h4
+                              className={`text-xs sm:text-[13px] font-bold whitespace-nowrap overflow-hidden text-ellipsis leading-snug ${
+                                isSelected ? 'text-emerald-300 font-extrabold' : 'text-slate-100'
+                              }`}
+                              title={chain.name}
+                            >
+                              {chain.name}
+                            </h4>
 
-                            <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-400">
-                              <span className="flex items-center gap-1">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-slate-400">
+                              <span className="flex items-center gap-1 shrink-0">
                                 <MapPin className="w-3 h-3 text-cyan-400" />
                                 <strong className="text-slate-300 font-bold">{chain.branches?.length || 0}</strong> فروع
                               </span>
                               {chain.hotline && (
-                                <span className="flex items-center gap-1 text-slate-400">
+                                <span className="flex items-center gap-1 text-slate-400 shrink-0">
                                   <Phone className="w-3 h-3 text-emerald-400" />
                                   <span>{chain.hotline}</span>
+                                </span>
+                              )}
+                              {isBirthdayThisMonth && (
+                                <span
+                                  className="shrink-0 text-[10px] px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold flex items-center gap-1"
+                                  title={`عيد ميلاد السلسلة هذا الشهر (${chain.anniversaryDate})`}
+                                >
+                                  🎂 شهر الميلاد
                                 </span>
                               )}
                             </div>
