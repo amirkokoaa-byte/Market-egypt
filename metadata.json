@@ -1,0 +1,6 @@
+{
+  "name": "دليل سلاسل السوبر ماركت في مصر | Egypt Supermarkets Hub",
+  "description": "دليل وإدارة سلاسل وفروع السوبر ماركت والهايبر ماركت في مصر مع إمكانية رفع الفروع من إكسيل والتواصل السريع والخطوط الساخنة.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
