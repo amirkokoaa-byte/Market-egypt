@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { SupermarketChain, AppSettings, Branch, ToastMessage, CustomSidebarSection, CustomSubButton } from '../types';
 import { INITIAL_CHAINS, INITIAL_SETTINGS, DEFAULT_TIMELINE_COVER } from '../data/initialData';
 import { normalizeBranchKey, deduplicateBranches } from '../utils/excel';
+import {
+  subscribeToChains,
+  saveChainToFirestore,
+  deleteChainFromFirestore,
+  syncAllChainsToFirestore,
+  subscribeToSettings,
+  saveSettingsToFirestore,
+} from '../lib/firebase';
 
 const STORAGE_KEY_CHAINS = 'egypt_supermarkets_chains_v2';
 const STORAGE_KEY_SETTINGS = 'egypt_supermarkets_settings_v2';
@@ -115,6 +123,47 @@ export function useSupermarketStore() {
     }
   }, [chains]);
 
+  // Real-time Firestore synchronization for Supermarket Chains
+  useEffect(() => {
+    let isInitial = true;
+    const unsubscribe = subscribeToChains(
+      (remoteChains) => {
+        if (remoteChains && remoteChains.length > 0) {
+          setChains(cleanChainsData(remoteChains));
+          if (isInitial) {
+            showToast('success', 'متصل بالسحابة (Firebase) ⚡', 'يتم مزامنة وتحديث الفروع والسلاسل لحظياً.');
+          }
+        } else if (isInitial && remoteChains.length === 0) {
+          // Initialize empty Firestore with default chains
+          syncAllChainsToFirestore(INITIAL_CHAINS).catch((err) => {
+            console.warn('Initial sync to Firestore notice:', err);
+          });
+        }
+        isInitial = false;
+      },
+      (error) => {
+        console.warn('Firestore real-time connection status:', error);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [showToast]);
+
+  // Real-time Firestore synchronization for Settings
+  useEffect(() => {
+    const unsubscribe = subscribeToSettings((remoteSettings) => {
+      if (remoteSettings && remoteSettings.websiteName) {
+        setSettings(remoteSettings);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   // Save settings on changes
   useEffect(() => {
     try {
@@ -190,19 +239,29 @@ export function useSupermarketStore() {
     setChains((prev) => [newChain, ...prev]);
     setSelectedChainId(id);
     setActiveView('chains');
+    saveChainToFirestore(newChain).catch((err) => console.warn('Firestore addChain:', err));
     showToast('success', 'تمت إضافة السلسلة بنجاح!', `أهلاً بـ ${newChain.name} في الدليل`);
   }, [showToast]);
 
   const updateChain = useCallback((id: string, updates: Partial<SupermarketChain>) => {
-    setChains((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
-    );
+    setChains((prev) => {
+      const next = prev.map((c) => {
+        if (c.id === id) {
+          const updated = { ...c, ...updates };
+          saveChainToFirestore(updated).catch((err) => console.warn('Firestore updateChain:', err));
+          return updated;
+        }
+        return c;
+      });
+      return next;
+    });
     showToast('success', 'تم تحديث بيانات السلسلة بنجاح');
   }, [showToast]);
 
   const deleteChain = useCallback((id: string) => {
     const target = chains.find((c) => c.id === id);
     setChains((prev) => prev.filter((c) => c.id !== id));
+    deleteChainFromFirestore(id).catch((err) => console.warn('Firestore deleteChain:', err));
     if (selectedChainId === id) {
       const remaining = chains.filter((c) => c.id !== id);
       if (remaining.length > 0) {
@@ -222,10 +281,12 @@ export function useSupermarketStore() {
     setChains((prev) =>
       prev.map((c) => {
         if (c.id === chainId) {
-          return {
+          const updated = {
             ...c,
             branches: [newBranch, ...c.branches],
           };
+          saveChainToFirestore(updated).catch((err) => console.warn('Firestore addBranch:', err));
+          return updated;
         }
         return c;
       })
@@ -254,10 +315,12 @@ export function useSupermarketStore() {
       setChains((prev) =>
         prev.map((c) => {
           if (c.id === chainId) {
-            return {
+            const updated = {
               ...c,
               branches: [...filtered, ...c.branches],
             };
+            saveChainToFirestore(updated).catch((err) => console.warn('Firestore bulkAddBranches:', err));
+            return updated;
           }
           return c;
         })
@@ -279,10 +342,12 @@ export function useSupermarketStore() {
     setChains((prev) =>
       prev.map((c) => {
         if (c.id === chainId) {
-          return {
+          const updated = {
             ...c,
             branches: c.branches.map((b) => (b.id === branchId ? { ...b, ...updates } : b)),
           };
+          saveChainToFirestore(updated).catch((err) => console.warn('Firestore updateBranch:', err));
+          return updated;
         }
         return c;
       })
@@ -294,10 +359,12 @@ export function useSupermarketStore() {
     setChains((prev) =>
       prev.map((c) => {
         if (c.id === chainId) {
-          return {
+          const updated = {
             ...c,
             branches: c.branches.filter((b) => b.id !== branchId),
           };
+          saveChainToFirestore(updated).catch((err) => console.warn('Firestore deleteBranch:', err));
+          return updated;
         }
         return c;
       })
@@ -307,7 +374,11 @@ export function useSupermarketStore() {
 
   // Settings & Custom Sections Operations
   const updateSettings = useCallback((updates: Partial<AppSettings>) => {
-    setSettings((prev) => ({ ...prev, ...updates }));
+    setSettings((prev) => {
+      const next = { ...prev, ...updates };
+      saveSettingsToFirestore(next).catch((err) => console.warn('Firestore updateSettings:', err));
+      return next;
+    });
     showToast('success', 'تم حفظ الإعدادات بنجاح');
   }, [showToast]);
 
