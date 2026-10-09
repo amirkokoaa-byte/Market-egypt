@@ -1,5 +1,8 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   getFirestore,
   collection,
   doc,
@@ -8,6 +11,10 @@ import {
   onSnapshot,
   query,
   Firestore,
+  waitForPendingWrites,
+  enableNetwork,
+  disableNetwork,
+  SnapshotMetadata,
 } from 'firebase/firestore';
 import { SupermarketChain, AppSettings } from '../types';
 
@@ -22,9 +29,31 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-QELXK33M9Z',
 };
 
-// Initialize Firebase safely (avoid multiple initializations)
+// Initialize Firebase App safely (singleton)
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-export const db: Firestore = getFirestore(app);
+
+/**
+ * Initialize Firestore with multi-tab IndexedDB Offline Persistence.
+ * This guarantees:
+ * 1. Immediate offline availability of all cached documents.
+ * 2. Uninterrupted reads & writes even with zero internet.
+ * 3. Automatic queuing of offline mutations with background sync on reconnect.
+ * 4. Multi-tab synchronization without browser tab locks.
+ */
+function initFirestoreWithPersistence(): Firestore {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    });
+  } catch (err: any) {
+    console.warn('Firestore offline persistence initialization notice:', err?.message || err);
+    return getFirestore(app);
+  }
+}
+
+export const db: Firestore = initFirestoreWithPersistence();
 
 // Firestore collection names
 export const CHAINS_COLLECTION = 'supermarket_chains';
@@ -39,17 +68,20 @@ function sanitizeForFirestore<T>(data: T): any {
 }
 
 /**
- * 1. Listen for real-time updates on Supermarket Chains
- * Automatically updates when any user or admin adds, edits, or deletes a chain or branch!
+ * 1. Listen for real-time updates on Supermarket Chains with offline awareness
+ * Invokes onUpdate with chain data, and provides snapshot metadata:
+ * - fromCache: true if data is served from local IndexedDB cache
+ * - hasPendingWrites: true if there are local offline mutations waiting to sync to the cloud
  */
 export function subscribeToChains(
-  onUpdate: (chains: SupermarketChain[]) => void,
+  onUpdate: (chains: SupermarketChain[], metadata?: SnapshotMetadata) => void,
   onError?: (error: any) => void
 ) {
   const chainsQuery = query(collection(db, CHAINS_COLLECTION));
 
   return onSnapshot(
     chainsQuery,
+    { includeMetadataChanges: true },
     (snapshot) => {
       const chains: SupermarketChain[] = [];
       snapshot.forEach((docSnap) => {
@@ -59,7 +91,7 @@ export function subscribeToChains(
           id: docSnap.id,
         });
       });
-      onUpdate(chains);
+      onUpdate(chains, snapshot.metadata);
     },
     (error) => {
       console.warn('Firestore real-time subscription error:', error);
@@ -69,7 +101,9 @@ export function subscribeToChains(
 }
 
 /**
- * 2. Send (save/update) a chain to Firestore with sanitized data
+ * 2. Send (save/update) a chain to Firestore.
+ * When offline, this resolves immediately after writing to local IndexedDB,
+ * and Firestore queues it for background sync as soon as network returns.
  */
 export async function saveChainToFirestore(chain: SupermarketChain): Promise<void> {
   const chainDocRef = doc(db, CHAINS_COLLECTION, chain.id);
@@ -78,7 +112,7 @@ export async function saveChainToFirestore(chain: SupermarketChain): Promise<voi
 }
 
 /**
- * 3. Delete a chain from Firestore
+ * 3. Delete a chain from Firestore (offline-capable).
  */
 export async function deleteChainFromFirestore(chainId: string): Promise<void> {
   const chainDocRef = doc(db, CHAINS_COLLECTION, chainId);
@@ -106,19 +140,20 @@ export async function syncAllChainsToFirestore(
 }
 
 /**
- * 5. Listen for real-time updates on App Settings
+ * 5. Listen for real-time updates on App Settings with metadata
  */
 export function subscribeToSettings(
-  onUpdate: (settings: AppSettings) => void,
+  onUpdate: (settings: AppSettings, metadata?: SnapshotMetadata) => void,
   onError?: (error: any) => void
 ) {
   const settingsDocRef = doc(db, SETTINGS_COLLECTION, 'global_config');
 
   return onSnapshot(
     settingsDocRef,
+    { includeMetadataChanges: true },
     (docSnap) => {
       if (docSnap.exists()) {
-        onUpdate(docSnap.data() as AppSettings);
+        onUpdate(docSnap.data() as AppSettings, docSnap.metadata);
       }
     },
     (error) => {
@@ -129,10 +164,46 @@ export function subscribeToSettings(
 }
 
 /**
- * 6. Save App Settings to Firestore
+ * 6. Save App Settings to Firestore (offline-capable)
  */
 export async function saveSettingsToFirestore(settings: AppSettings): Promise<void> {
   const settingsDocRef = doc(db, SETTINGS_COLLECTION, 'global_config');
   const cleanData = sanitizeForFirestore(settings);
   await setDoc(settingsDocRef, cleanData, { merge: true });
+}
+
+/**
+ * 7. Wait for all pending offline writes to be committed to the Firestore cloud.
+ * Resolves as soon as the local queue has drained and confirmed on server.
+ */
+export async function waitForCloudSync(timeoutMs: number = 8000): Promise<boolean> {
+  try {
+    const syncPromise = waitForPendingWrites(db);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Sync timeout')), timeoutMs)
+    );
+    await Promise.race([syncPromise, timeoutPromise]);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * 8. Network management utilities (reconnect / disconnect)
+ */
+export async function goOnline(): Promise<void> {
+  try {
+    await enableNetwork(db);
+  } catch (err) {
+    console.warn('Firestore enableNetwork notice:', err);
+  }
+}
+
+export async function goOffline(): Promise<void> {
+  try {
+    await disableNetwork(db);
+  } catch (err) {
+    console.warn('Firestore disableNetwork notice:', err);
+  }
 }

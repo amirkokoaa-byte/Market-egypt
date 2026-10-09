@@ -9,7 +9,11 @@ import {
   syncAllChainsToFirestore,
   subscribeToSettings,
   saveSettingsToFirestore,
+  waitForCloudSync,
+  goOnline,
+  goOffline,
 } from '../lib/firebase';
+import { SyncState } from './useNetworkSync';
 
 const STORAGE_KEY_CHAINS = 'egypt_supermarkets_chains_v2';
 const STORAGE_KEY_SETTINGS = 'egypt_supermarkets_settings_v2';
@@ -257,11 +261,73 @@ export function useSupermarketStore() {
     }
   }, [chains]);
 
-  // Real-time Firestore synchronization for Supermarket Chains
+  // Network & Intelligent Offline Synchronization State
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [syncState, setSyncState] = useState<SyncState>(() =>
+    typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'synced'
+  );
+  const [hasPendingWrites, setHasPendingWrites] = useState<boolean>(false);
+  const [pendingCount, setPendingCount] = useState<number>(0);
+
+  // Network detection and intelligent background synchronization
+  useEffect(() => {
+    const handleOnline = async () => {
+      console.log('⚡ Network connection restored. Initializing automatic cloud synchronization...');
+      setIsOnline(true);
+      setSyncState('syncing');
+
+      try {
+        await goOnline();
+        showToast('info', 'جاري المزامنة مع السحابة 🔄', 'عادت شبكة الإنترنت، جاري رفع البيانات المحفوظة محلياً...');
+        const synced = await waitForCloudSync(8000);
+        if (synced) {
+          setHasPendingWrites(false);
+          setPendingCount(0);
+          setSyncState('synced');
+          showToast('success', 'Back Online: Synced to Firebase ☁️✅', 'تمت مزامنة كافة البيانات والتعديلات بنجاح مع السحابة.');
+        } else {
+          setSyncState('synced');
+        }
+      } catch (err) {
+        console.warn('Reconnection sync error:', err);
+        setSyncState('synced');
+      }
+    };
+
+    const handleOffline = () => {
+      console.log('🔌 Network disconnected. Switching to local offline mode.');
+      setIsOnline(false);
+      setSyncState('offline');
+      goOffline().catch(() => {});
+      showToast('info', 'Offline Mode: Data Saved Locally ☁️❌', 'انقطع الاتصال بالإنترنت. أي إدخالات أو تعديلات ستُحفظ محلياً فوراً وستُرفع تلقائياً عند عودة الاتصال.');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [showToast]);
+
+  // Real-time Firestore synchronization for Supermarket Chains with offline awareness
   useEffect(() => {
     let isInitial = true;
     const unsubscribe = subscribeToChains(
-      (remoteChains) => {
+      (remoteChains, metadata) => {
+        if (metadata) {
+          setHasPendingWrites(metadata.hasPendingWrites);
+          if (!metadata.hasPendingWrites && navigator.onLine) {
+            setSyncState('synced');
+            setPendingCount(0);
+          } else if (metadata.hasPendingWrites) {
+            setSyncState(navigator.onLine ? 'syncing' : 'offline');
+          }
+        }
+
         if (remoteChains && remoteChains.length > 0) {
           setChains((currentLocalChains) => {
             const merged = mergeChainsData(currentLocalChains, remoteChains);
@@ -279,10 +345,10 @@ export function useSupermarketStore() {
             });
             return merged;
           });
-          if (isInitial) {
+          if (isInitial && navigator.onLine) {
             showToast('success', 'متصل بالسحابة (Firebase) ⚡', 'يتم مزامنة وتحديث الفروع والسلاسل لحظياً.');
           }
-        } else if (isInitial && remoteChains.length === 0) {
+        } else if (isInitial && remoteChains.length === 0 && navigator.onLine) {
           // Initialize empty Firestore with default chains
           syncAllChainsToFirestore(INITIAL_CHAINS).catch((err) => {
             console.warn('Initial sync to Firestore notice:', err);
@@ -905,7 +971,34 @@ export function useSupermarketStore() {
     }
   }, [chains, showToast]);
 
+  const triggerManualSync = useCallback(async () => {
+    if (!navigator.onLine) {
+      showToast('info', 'وضع بدون اتصال ☁️❌', 'أنت غير متصل بالإنترنت حالياً. بياناتك محفوظة محلياً بالكامل.');
+      return;
+    }
+    setSyncState('syncing');
+    showToast('info', 'جارٍ فحص المزامنة مع السحابة 🔄', 'يتم التأكد من استقرار ومزامنة البيانات...');
+    try {
+      await goOnline();
+      await syncAllChainsToFirestore(chains);
+      await saveSettingsToFirestore(settings);
+      await waitForCloudSync(6000);
+      setSyncState('synced');
+      setHasPendingWrites(false);
+      setPendingCount(0);
+      showToast('success', 'Back Online: Synced to Firebase ☁️✅', 'تم التحقق من استقرار ومزامنة البيانات بنجاح.');
+    } catch (err) {
+      console.warn('Manual sync error:', err);
+      setSyncState('synced');
+    }
+  }, [chains, settings, showToast]);
+
   return {
+    isOnline,
+    syncState,
+    hasPendingWrites,
+    pendingCount,
+    triggerManualSync,
     chains,
     filteredChains,
     selectedChain,

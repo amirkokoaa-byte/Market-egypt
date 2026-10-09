@@ -15,6 +15,11 @@ import { SupermarketChain, Branch } from './types';
 
 export default function App() {
   const {
+    isOnline,
+    syncState,
+    hasPendingWrites,
+    pendingCount,
+    triggerManualSync,
     chains,
     filteredChains,
     selectedChain,
@@ -72,7 +77,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-['Cairo',sans-serif] selection:bg-emerald-500 selection:text-white antialiased">
-      {/* 1. TOP NAVIGATION BAR */}
+      {/* 1. TOP NAVIGATION BAR WITH REAL-TIME OFFLINE/SYNC STATUS */}
       <Header
         websiteName={settings.websiteName}
         totalChains={totalChains}
@@ -83,6 +88,11 @@ export default function App() {
         isAdmin={isAdmin}
         onOpenAdminLogin={() => setIsAdminLoginOpen(true)}
         onLogoutAdmin={logoutAdmin}
+        isOnline={isOnline}
+        syncState={syncState}
+        hasPendingWrites={hasPendingWrites}
+        pendingCount={pendingCount}
+        onTriggerSync={triggerManualSync}
       />
 
       {/* MAIN LAYOUT WRAPPER */}

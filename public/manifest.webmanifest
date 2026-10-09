@@ -1,0 +1,34 @@
+{
+  "id": "/",
+  "name": "دليل سلاسل السوبر ماركت في مصر",
+  "short_name": "سوبرماركت",
+  "description": "دليل وإدارة سلاسل وفروع السوبر ماركت والهايبر ماركت في مصر مع دعم كامل وبدون إنترنت ومزامنة سحابية فورية.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#020617",
+  "background_color": "#020617",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

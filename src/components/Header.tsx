@@ -1,5 +1,8 @@
 import React from 'react';
-import { Settings, Store, MapPin, Menu, Shield, Lock, LogOut } from 'lucide-react';
+import { Settings, Store, MapPin, Menu, Shield, Lock } from 'lucide-react';
+import { SyncStatusIndicator } from './SyncStatusIndicator';
+import { PWAInstallButton } from './PWAInstallButton';
+import { SyncState } from '../hooks/useNetworkSync';
 
 interface HeaderProps {
   websiteName: string;
@@ -11,6 +14,11 @@ interface HeaderProps {
   isAdmin?: boolean;
   onOpenAdminLogin?: () => void;
   onLogoutAdmin?: () => void;
+  isOnline?: boolean;
+  syncState?: SyncState;
+  hasPendingWrites?: boolean;
+  pendingCount?: number;
+  onTriggerSync?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,10 +27,14 @@ export const Header: React.FC<HeaderProps> = ({
   totalBranches,
   onOpenSettings,
   onToggleMobileSidebar,
-  onResetData,
   isAdmin = false,
   onOpenAdminLogin,
   onLogoutAdmin,
+  isOnline = true,
+  syncState = 'synced',
+  hasPendingWrites = false,
+  pendingCount = 0,
+  onTriggerSync,
 }) => {
   // Ensure "في مصر" is stripped from title on all screen sizes
   const cleanTitle = websiteName.replace(/\s*في مصر\s*$/, '').trim() || 'دليل سلاسل السوبر ماركت';
@@ -56,10 +68,22 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Left Section: Stats & Action Buttons */}
+          {/* Left Section: Network Sync Status, Install Button, Stats & Action Buttons */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Real-Time Cloud Sync & Offline State Indicator */}
+            <SyncStatusIndicator
+              isOnline={isOnline}
+              syncState={syncState}
+              hasPendingWrites={hasPendingWrites}
+              pendingCount={pendingCount}
+              onTriggerSync={onTriggerSync}
+            />
+
+            {/* PWA In-App Install Prompt */}
+            <PWAInstallButton />
+
             {/* Quick Stats Badges */}
-            <div className="hidden sm:flex items-center gap-2">
+            <div className="hidden lg:flex items-center gap-2">
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-750 text-slate-200">
                 <Store className="w-4 h-4 text-emerald-400" />
                 <span className="text-xs text-slate-400">السلاسل:</span>
@@ -94,7 +118,7 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Settings Button (زر الإعدادات ⚙️) */}
+            {/* Settings Button */}
             <button
               onClick={onOpenSettings}
               className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-900/30 hover:shadow-emerald-700/40 active:scale-95 transition-all duration-200"
