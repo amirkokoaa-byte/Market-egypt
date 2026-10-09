@@ -165,16 +165,8 @@ export default function App() {
       <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span>{settings.websiteName} © {new Date().getFullYear()} — دليل سلاسل ومنافذ السوبر ماركت في مصر</span>
-          <div className="flex items-center gap-4 text-slate-400">
-            <button onClick={() => setIsSettingsOpen(true)} className="hover:text-emerald-400 transition">
-              الإعدادات
-            </button>
-            <button onClick={exportDatabaseBackup} className="hover:text-emerald-400 transition">
-              نسخ احتياطي
-            </button>
-            <button onClick={resetToDefaultData} className="hover:text-rose-400 transition">
-              إعادة ضبط البيانات
-            </button>
+          <div className="text-slate-400 font-medium">
+            مع تحيات المطور Amir Lamay
           </div>
         </div>
       </footer>
